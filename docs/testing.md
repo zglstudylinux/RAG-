@@ -254,44 +254,59 @@ docker compose up --build
 
 ---
 
-## 7. 填入真实 API key（真实效果测试）
+## 7. 真实模型测试（LLM/VLM 走公司中转站，Embedding 走本地 BGE）
 
-1. 复制 `.env.example` → `.env`，把下面三段填成自己的 key：
+> 公司中转站 `http://192.168.18.80:3000/v1` 只提供 LLM/视觉模型，**不提供 embedding 模型**
+> （实测 bge-m3 / text-embedding-3-small 等全部 503），因此向量检索改用**本地 BGE**，文档文本不出内网。
+
+### 7.0 安装本地 embedding 依赖 + 下载模型（一次性）
+
+```powershell
+$env:HTTP_PROXY = "http://127.0.0.1:7897"
+$env:HTTPS_PROXY = "http://127.0.0.1:7897"
+# CPU 版 torch（避免下载几 GB 的 CUDA 版）
+.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+# sentence-transformers（含 transformers / scipy 等）
+.venv\Scripts\python -m pip install -e ".[local]"
+# 下载 BGE 模型到本地（走 hf-mirror 国内镜像，约 400MB）
+.venv\Scripts\python scripts\fetch_model.py
+```
+
+模型会下载到 `data/models/bge-base-zh-v1.5/`（已在 .gitignore 中，不提交；`data/` 整个目录都不入库）。
+`.env` 里 `RAGKB_EMBEDDING_MODEL=data/models/bge-base-zh-v1.5` 指向这个本地路径，运行完全离线。
+
+### 7.1 配置 `.env`
+
+`.env` 已配好（本机当前配置）：LLM/VLM 走中转站，Embedding 走本地 BGE：
 
 ```ini
-RAGKB_LLM_BASE_URL=https://api.deepseek.com/v1
-RAGKB_LLM_API_KEY=sk-你的LLM-key
-RAGKB_LLM_MODEL=deepseek-chat
+RAGKB_LLM_PROVIDER=openai-compatible
+RAGKB_LLM_BASE_URL=http://192.168.18.80:3000/v1
+RAGKB_LLM_API_KEY=sk-...
+RAGKB_LLM_MODEL=deepseek-v4-pro-0813
 
-RAGKB_EMBEDDING_BASE_URL=https://api.siliconflow.cn/v1
-RAGKB_EMBEDDING_API_KEY=sk-你的Embedding-key
-RAGKB_EMBEDDING_MODEL=BAAI/bge-m3
+RAGKB_EMBEDDING_PROVIDER=local
+RAGKB_EMBEDDING_MODEL=data/models/bge-base-zh-v1.5
 
-RAGKB_VLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-RAGKB_VLM_API_KEY=sk-你的VLM-key
-RAGKB_VLM_MODEL=qwen-vl-max
 RAGKB_VLM_PROVIDER=openai-compatible
+RAGKB_VLM_BASE_URL=http://192.168.18.80:3000/v1
+RAGKB_VLM_API_KEY=sk-...
+RAGKB_VLM_MODEL=deepseek-v4-flash-vision-exp
 ```
 
-2. **清掉 fake 环境变量**（否则它会覆盖 `.env`），最省事是**新开一个 PowerShell 窗口**；
-   或手动清除：
+### 7.2 启动（用新窗口，确保没有 fake 环境变量）
 
 ```powershell
-Remove-Item Env:RAGKB_LLM_PROVIDER -ErrorAction SilentlyContinue
-Remove-Item Env:RAGKB_EMBEDDING_PROVIDER -ErrorAction SilentlyContinue
-Remove-Item Env:RAGKB_VLM_PROVIDER -ErrorAction SilentlyContinue
-```
-
-3. 重启服务：
-
-```powershell
+cd D:\Code\AI\RAG
 .venv\Scripts\python -m uvicorn apps.api.main:app --reload
 ```
 
-4. 重新走一遍第 3、4 节的问答，此时答案应为真实模型生成、引用为真实向量检索结果。
+首次调 `/ask` 或 `ingest` 时本地 BGE 模型会加载（几秒~十几秒，只在首次），随后正常检索。
 
-> 注意：`RAGKB_LLM_PROVIDER` / `RAGKB_EMBEDDING_PROVIDER` 在 `.env` 里默认就是
-> `openai-compatible`，只要填了 key 即可；不填 key 启动会在调用时返回 503（属预期，缺 key 保护）。
+### 7.3 验证
+
+- 摄入文档后提问：答案应为真实模型生成（不再是 `This is a fake answer.`），引用为真实向量检索结果。
+- 快速自检：`/health` 里 `llm_provider=openai-compatible`、`embedding_provider=local`。
 
 ---
 
@@ -304,4 +319,7 @@ Remove-Item Env:RAGKB_VLM_PROVIDER -ErrorAction SilentlyContinue
 | 2026-08-26 | 4.3/4.5 | `Invoke-RestMethod -Body` 传中文 question 被存成 `???? GPIO ???` | 已解决：JSON 先 `[System.Text.Encoding]::UTF8.GetBytes()` 转字节再传 |
 | 2026-08-26 | 5 | CLI 报 `ConfigurationError: Embedding API key is not configured` | 已解决：跑 CLI 前先 `$env:RAGKB_LLM_PROVIDER="fake"`、`$env:RAGKB_EMBEDDING_PROVIDER="fake"`（backup 除外） |
 | 2026-08-26 | 6 | `docker compose up` 报「无法将 docker 项识别为 cmdlet」 | 本机未安装 Docker Desktop；此节可选，装 Docker 后再测或跳过 |
-|  |  |  |  |
+| 2026-08-26 | 7 | 公司中转站无 embedding 模型（bge-m3 / text-embedding-3-small 等全部 503） | 已解决：改用本地 BGE（`RAGKB_EMBEDDING_PROVIDER=local`），文档文本不出内网 |
+| 2026-08-26 | 7 | `huggingface_hub` 下载模型失败（重定向校验报错 + 大文件断连） | 已解决：新增 `scripts/fetch_model.py`，走 hf-mirror + `Range` 断点续传 + 自动重试 |
+| 2026-08-26 | 7 | sentence-transformers 6.0 加载 bge-base-zh-v1.5 报 `Pooling.__init__() missing embedding_dimension` | 已解决：模型缺子目录 `1_Pooling/config.json`，tree 接口需 `?recursive=true` 才会列出子目录文件 |
+| 2026-08-26 | 7 | 切换 embedding（fake 256 维 → BGE 768 维）后检索维度不匹配 | 已解决：必须重建向量库（备份旧库 → 删 `data/ragkb.sqlite` → 重新 `ingest`） |

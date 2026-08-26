@@ -22,7 +22,7 @@ ragkb/
 ├─ packages/ragkb/    # 可复用核心包
 │  ├─ config.py       # 配置（pydantic-settings，RAGKB_ 前缀）
 │  ├─ auth.py         # 密码散列 + JWT 令牌
-│  ├─ providers/      # LLM / Embedding 适配器（OpenAI 兼容 + fake 离线实现）
+│  ├─ providers/      # LLM / Embedding 适配器（OpenAI 兼容 + 本地 BGE + fake 离线）
 │  ├─ core/           # 领域模型、摄入/问答管线、客户-型号 ACL
 │  ├─ loaders/        # PDF / Word / Markdown / 源码 / 原理图(VLM) 解析器
 │  ├─ chunking/       # 分块策略（文本 + 源码结构感知）
@@ -89,9 +89,10 @@ curl -X POST http://127.0.0.1:8000/ask \
 ## 配置
 
 所有配置项通过环境变量（前缀 `RAGKB_`）或 `.env` 文件注入，见 `.env.example`。
-LLM 与 Embedding 均采用 OpenAI 兼容协议，一套客户端即可覆盖 DeepSeek / Qwen(DashScope) /
-智谱 / SiliconFlow / Moonshot / OpenAI 等后端。VLM（原理图描述）同样走 OpenAI 兼容多模态协议
-（如 Qwen-VL / GPT-4o）。
+LLM 与 Embedding 默认采用 OpenAI 兼容协议，一套客户端即可覆盖 DeepSeek / Qwen(DashScope) /
+智谱 / SiliconFlow / Moonshot / OpenAI 等后端；Embedding 也可设为 `local`，用本地
+sentence-transformers（BGE）离线向量化，数据不出内网（`pip install -e ".[local]"`）。
+VLM（原理图描述）同样走 OpenAI 兼容多模态协议（如 Qwen-VL / GPT-4o）。
 
 ## 权限与双门户
 
