@@ -69,7 +69,19 @@ $env:RAGKB_VLM_PROVIDER = "fake"      # 可选：想测「原理图 PDF 识别�
 > ⚠️ 不要用 `curl.exe -d` 传 JSON——Windows PowerShell 会把 JSON 里的双引号吞掉，导致
 > `json_invalid`。JSON 请求统一用 PowerShell 原生的 `Invoke-RestMethod`（可靠、无转义坑）；
 > 只有**文件上传**（multipart）和**只看状态码**两处用 `curl.exe`（无嵌套引号，不受影响）。
+>
+> ⚠️ 中文请求体：PowerShell 5.1 的 `Invoke-RestMethod -Body` 传**字符串**时会把中文写成 `?`。
+> 凡 body 里含中文（`/ask` 的 question），必须先把 JSON 转成 **UTF-8 字节**再传（见 4.3）。
+> 纯 ASCII 的 body（登录/建用户/反馈）不受影响，可继续用字符串。
+>
+> ⚠️ 控制台显示中文乱码是 PowerShell 5.1 的**显示**问题，**数据库里存的是正确的中文**；
+> 要确认中文内容，用浏览器页面（能正常显示）或查 `data/ragkb.sqlite` 对照即可。
+>
 > 下面用到的 `$token` 变量在同一个窗口里定义一次即可，之后一直复用。
+
+> ✅ 2026-08-26 已验证：4.1 token、4.2 上传(7 chunks)、4.4 建账号+403 隔离、4.5 recent/feedback/promote、
+> 4.6 similar 全部正常。4.3/4.5 的 `/ask` 中文 question 之前被写成 `?`，已按上面 UTF-8 字节方式修正，
+> 重跑 4.3 即可看到库里存进正确中文。
 
 ### 4.1 登录拿 token
 
@@ -89,10 +101,11 @@ curl.exe -s -X POST http://127.0.0.1:8000/ingest -H "Authorization: Bearer $toke
 
 预期：返回 `{"chunks": N, ...}`，N > 0。
 
-### 4.3 问答（带引用）
+### 4.3 问答（带引用，中文 question 需转 UTF-8 字节）
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"question":"如何配置 GPIO 引脚？"}'
+$q = '{"question":"如何配置 GPIO 引脚？"}'
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -Headers @{Authorization="Bearer $token"} -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($q))
 ```
 
 预期：返回对象含 `answer` 和 `citations`（每个 citation 有 `source`）。
@@ -119,8 +132,9 @@ curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:8000/users -H "Authorizati
 ### 4.5 FAQ 闭环（提问 → 反馈 → 沉淀 → 再次命中）
 
 ```powershell
-# 1. 先问一次，会产生一条 Q&A 记录
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"question":"如何配置 GPIO 引脚？"}' | Out-Null
+# 1. 先问一次，会产生一条 Q&A 记录（中文 question 转 UTF-8 字节）
+$q = '{"question":"如何配置 GPIO 引脚？"}'
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -Headers @{Authorization="Bearer $token"} -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($q)) | Out-Null
 
 # 2. 查看最近 Q&A，记下 id
 Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/qa/recent -Headers @{Authorization="Bearer $token"}
@@ -229,4 +243,5 @@ Remove-Item Env:RAGKB_VLM_PROVIDER -ErrorAction SilentlyContinue
 |---|---|---|---|
 | 2026-08-26 | 0 | `.venv\Scripts\activate` 报「无法加载模块 .venv」 | 已解决：改用 `.venv\Scripts\python` 直接执行 |
 | 2026-08-26 | 4.1 | `curl.exe -d '{"username":...}'` 报 `json_invalid`（JSON 双引号被 PowerShell 吞掉） | 已解决：JSON 请求改用 `Invoke-RestMethod` |
+| 2026-08-26 | 4.3/4.5 | `Invoke-RestMethod -Body` 传中文 question 被存成 `???? GPIO ???` | 已解决：JSON 先 `[System.Text.Encoding]::UTF8.GetBytes()` 转字节再传 |
 |  |  |  |  |
