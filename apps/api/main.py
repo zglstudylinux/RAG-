@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from importlib.resources import files
+from time import perf_counter
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -20,11 +21,15 @@ from ragkb.core.errors import ConfigurationError
 from ragkb.core.factory import build_store
 from ragkb.indexing.qa_store import QAStore
 from ragkb.indexing.user_store import UserStore
+from ragkb.logging_setup import configure_logging, get_logger
+
+logger = get_logger("ragkb.api")
 
 
 def create_app() -> FastAPI:
     """Build the FastAPI application with all routers wired up."""
     settings = get_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(
         title="ragkb",
         version=__version__,
@@ -53,6 +58,20 @@ def create_app() -> FastAPI:
     app.include_router(documents_router)
     app.include_router(users_router)
     app.include_router(qa_router)
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        start = perf_counter()
+        response = await call_next(request)
+        duration_ms = (perf_counter() - start) * 1000
+        logger.info(
+            "%s %s -> %d (%.1fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
+        return response
 
     @app.get("/", include_in_schema=False)
     async def index() -> HTMLResponse:

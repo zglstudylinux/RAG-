@@ -3,8 +3,8 @@
 一个**可插拔、可复用、可迭代**的 RAG 知识库，面向芯片原厂 SDK 技术资料（SDK 源码、开发指南
 PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 
-> 当前状态：**M6 问题收集与 FAQ 闭环**（Q&A 记录、反馈、相似问题、审核沉淀为 FAQ）。
-> M5 双门户权限、M4 检索质量、M3 代码+原理图、M2 Web 门户、M1 文档接入、M0 骨架已完成。
+> 当前状态：**v1.0.0 已发布**（M0–M7 全部完成：文档/代码/原理图接入、Web 门户、混合检索、
+> 双门户权限、FAQ 闭环、Docker 化）。
 
 ## 设计原则
 
@@ -64,6 +64,7 @@ uvicorn apps.api.main:app --reload
 python -m apps.cli.main ingest ./docs/
 python -m apps.cli.main ask "如何配置 GPIO 引脚？"
 python -m apps.cli.main eval examples/eval_example.json   # 检索质量评估（Hit@k / MRR）
+python -m apps.cli.main backup ./backups/                  # 备份 SQLite 库
 
 # 6. 打开浏览器访问 http://127.0.0.1:8000/ （内置 Web 门户，默认账号 admin / admin123）
 
@@ -106,6 +107,18 @@ curl -F "file=@sdk.zip" -F "customer=acme" -F "model=x1" \
   -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/ingest
 ```
 
+## Docker 部署
+
+```bash
+docker compose up --build
+# 访问 http://localhost:8000/ （默认账号 admin / admin123）
+```
+
+密钥等通过环境变量或 `.env` 注入（见 `docker-compose.yml` 与 `.env.example`）。默认使用
+`fake` 离线 provider 便于快速启动；生产时把 `RAGKB_LLM_PROVIDER` / `RAGKB_EMBEDDING_PROVIDER`
+改为 `openai-compatible` 并填入 key。SQLite 数据保存在 `ragkb-data` 卷，可用
+`docker compose run --rm ragkb python -m apps.cli.main backup /data/backup` 备份。
+
 ## 路线图
 
 | 里程碑 | 内容 |
@@ -117,7 +130,7 @@ curl -F "file=@sdk.zip" -F "customer=acme" -F "model=x1" \
 | M4 | 检索质量：BM25+向量混合、rerank、评估脚本 ✅ |
 | M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL ✅ |
 | M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 ✅ |
-| M7 | 工程化：docker-compose、迁移、日志、备份、发布 v1 |
+| M7 | 工程化：docker-compose、日志、备份、发布 v1 ✅ |
 
 ## 安全说明
 

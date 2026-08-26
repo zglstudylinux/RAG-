@@ -1,0 +1,28 @@
+services:
+  ragkb:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      RAGKB_STORE_PATH: /data/ragkb.sqlite
+      RAGKB_JWT_SECRET: ${RAGKB_JWT_SECRET:-change-me-in-production-use-a-long-random-secret}
+      RAGKB_DEFAULT_ADMIN_PASSWORD: ${RAGKB_DEFAULT_ADMIN_PASSWORD:-admin123}
+      # Default to offline "fake" providers so `docker compose up` works without keys.
+      # In production set these to "openai-compatible" and provide the keys below.
+      RAGKB_LLM_PROVIDER: ${RAGKB_LLM_PROVIDER:-fake}
+      RAGKB_LLM_BASE_URL: ${RAGKB_LLM_BASE_URL:-}
+      RAGKB_LLM_API_KEY: ${RAGKB_LLM_API_KEY:-}
+      RAGKB_LLM_MODEL: ${RAGKB_LLM_MODEL:-}
+      RAGKB_EMBEDDING_PROVIDER: ${RAGKB_EMBEDDING_PROVIDER:-fake}
+      RAGKB_EMBEDDING_BASE_URL: ${RAGKB_EMBEDDING_BASE_URL:-}
+      RAGKB_EMBEDDING_API_KEY: ${RAGKB_EMBEDDING_API_KEY:-}
+      RAGKB_EMBEDDING_MODEL: ${RAGKB_EMBEDDING_MODEL:-}
+      RAGKB_VLM_PROVIDER: ${RAGKB_VLM_PROVIDER:-none}
+      RAGKB_VLM_BASE_URL: ${RAGKB_VLM_BASE_URL:-}
+      RAGKB_VLM_API_KEY: ${RAGKB_VLM_API_KEY:-}
+      RAGKB_VLM_MODEL: ${RAGKB_VLM_MODEL:-}
+    volumes:
+      - ragkb-data:/data
+
+volumes:
+  ragkb-data:

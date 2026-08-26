@@ -1,4 +1,4 @@
-"""Command-line interface: ingest documents, ask questions, and evaluate retrieval."""
+"""Command-line interface: ingest, ask, evaluate, and back up."""
 
 from __future__ import annotations
 
@@ -25,20 +25,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     evaluate.add_argument("-k", "--top-k", type=int, default=None, help="chunks to retrieve")
 
+    backup = subparsers.add_parser("backup", help="Back up the SQLite store file")
+    backup.add_argument("dest", help="destination file or directory")
+
     args = parser.parse_args(argv)
     return asyncio.run(_run(args))
 
 
 async def _run(args: argparse.Namespace) -> int:
     # Imported lazily so `--help` stays fast and does not load numpy/pymupdf/jieba.
+    from ragkb.config import get_settings
+
+    settings = get_settings()
+
+    if args.command == "backup":
+        from ragkb.core.backup import backup_store
+
+        target = backup_store(settings.store_path, args.dest)
+        print(f"Backed up {settings.store_path} -> {target}")
+        return 0
+
     import json
     from pathlib import Path
 
-    from ragkb.config import get_settings
     from ragkb.core.factory import build_services
     from ragkb.eval.metrics import evaluate_retrieval
 
-    settings = get_settings()
     services = build_services(settings)
     try:
         if args.command == "ingest":
