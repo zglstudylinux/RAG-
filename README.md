@@ -37,12 +37,15 @@ ragkb/
 
 ## 快速开始
 
+> 逐项测试清单与记录见 [docs/testing.md](docs/testing.md)。
+
 要求 Python 3.11+。
 
 ```bash
 # 1. 创建虚拟环境并安装（含开发依赖）
 python -m venv .venv
-# Windows:
+# Windows（若 activate 报“无法加载模块 .venv”，改用 .\.venv\Scripts\Activate.ps1，
+# 或干脆不激活、直接用 .venv\Scripts\python 前缀执行）:
 .venv\Scripts\activate
 # macOS/Linux:
 source .venv/bin/activate
