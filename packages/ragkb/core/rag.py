@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from ragkb.core.acl import Scope
 from ragkb.core.models import Answer, Citation, SearchResult
 from ragkb.indexing.base import VectorStore
@@ -15,6 +17,8 @@ SYSTEM_PROMPT = (
     "并在回答中用 [1]、[2] 等编号标注引用来源。"
     "如果资料中没有相关信息，请回答“资料中未找到相关内容”，不要编造。"
 )
+
+_CITATION_REF = re.compile(r"\[(\d+)\]")
 
 
 class RAGPipeline:
@@ -43,7 +47,39 @@ class RAGPipeline:
             Message(role="user", content=f"资料片段：\n\n{context}\n\n问题：{question}"),
         ]
         result = await self._llm.generate(messages)
-        return Answer(text=result.content, citations=citations)
+        text, filtered = self._filter_citations(result.content, citations)
+        return Answer(text=text, citations=filtered)
+
+    @staticmethod
+    def _filter_citations(
+        text: str | None, citations: list[Citation]
+    ) -> tuple[str | None, list[Citation]]:
+        """Keep only the citations the answer referenced via [n], renumbering both.
+
+        The LLM is asked to cite sources with [1], [2], ...; retrieved-but-unused
+        candidates are dropped so the "引用来源" list matches what the answer relies
+        on. The [n] markers in the text are rewritten to stay consistent with the
+        filtered list. If the LLM cited nothing, everything is returned unchanged.
+        """
+        if not citations:
+            return text, citations
+        used: set[int] = set()
+        for match in _CITATION_REF.finditer(text or ""):
+            index = int(match.group(1))
+            if 1 <= index <= len(citations):
+                used.add(index)
+        if not used:
+            return text, citations
+        used_sorted = sorted(used)
+        remap = {old: new for new, old in enumerate(used_sorted, start=1)}
+
+        def _rewrite(match: re.Match[str]) -> str:
+            index = int(match.group(1))
+            return f"[{remap[index]}]" if index in remap else match.group(0)
+
+        new_text = _CITATION_REF.sub(_rewrite, text or "")
+        new_citations = [citations[index - 1] for index in used_sorted]
+        return new_text, new_citations
 
     @staticmethod
     def _format_context(results: list[SearchResult]) -> tuple[str, list[Citation]]:

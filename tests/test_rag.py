@@ -52,3 +52,29 @@ def test_llm_received_context(tmp_path) -> None:
     user_message = llm.last_messages[-1].content
     assert "GPIO" in user_message
     assert "来源:" in user_message
+
+
+def test_answer_filters_unreferenced_citations(tmp_path) -> None:
+    rag, llm, _ = _build(tmp_path)
+    llm._answer = "GPIO pins are for input and output [1]."
+    answer = asyncio.run(rag.answer("How to configure GPIO pins?"))
+    assert answer.text == "GPIO pins are for input and output [1]."
+    assert len(answer.citations) == 1
+    assert "GPIO" in answer.citations[0].snippet
+
+
+def test_answer_renumbers_citations_consistently(tmp_path) -> None:
+    rag, llm, _ = _build(tmp_path)
+    llm._answer = "UART baud rate is 115200 [2]."
+    answer = asyncio.run(rag.answer("GPIO pins"))
+    # [2] is the only used citation; it is renumbered to [1] in both text and list
+    assert answer.text == "UART baud rate is 115200 [1]."
+    assert len(answer.citations) == 1
+    assert "UART" in answer.citations[0].snippet
+
+
+def test_answer_no_markers_keeps_all_citations(tmp_path) -> None:
+    rag, llm, _ = _build(tmp_path)
+    llm._answer = "This is a fake answer."  # no [n] markers
+    answer = asyncio.run(rag.answer("How to configure GPIO pins?"))
+    assert answer.citations  # fallback keeps all retrieved candidates

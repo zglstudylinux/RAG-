@@ -328,3 +328,4 @@ cd D:\Code\AI\RAG
 | 2026-08-26 | embedding选型 | 通义千问 embedding 测试：`qwen3.7-text-embedding` 可用（1024 维，跨语言好）；`tongyi-embedding-vision-flash`/`qwen3-vl-embedding` 报 404 | 已确认：后两者是视觉 embedding，不走 OpenAI 兼容接口；文本 RAG 用 `qwen3.7-text-embedding` |
 | 2026-08-26 | embedding选型 | qwen3.7 批量上限 20 条/请求（batch=50 报 `batch size should not be larger than 20`），摄入 1000+ 块一次发会失败 | 已解决：`OpenAICompatibleEmbedding` 加分批（`RAGKB_EMBEDDING_BATCH_SIZE=20`），新增单测 |
 | 2026-08-26 | 检索 | 加中文《SDK开发指南》后，`top_k=4` 时「SAR ADC 触摸按键」问被挤出去（英文 datasheet 排不上） | 已解决：`RAGKB_RETRIEVAL_TOP_K=6` 后恢复正确；18 个测试案例全部通过 |
+| 2026-08-26 | 引用核验 | 「引用来源」列表把检索到的 6 块全列出，但答案正文只标了 1-3 条，其余是目录页/无关章节等无效候选（如 RT-Thread 题 6 条里只有 1 条相关） | 已解决：`RAGPipeline` 只返回正文实际引用 `[n]` 的来源，并同步重写编号保持一致（新增单测） |
