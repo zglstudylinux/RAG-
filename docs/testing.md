@@ -202,6 +202,9 @@ $env:RAGKB_EMBEDDING_PROVIDER = "fake"
 
 ## 6. Docker 部署测试（可选）
 
+> ⚠️ 2026-08-26 本机**未安装 Docker**（`docker` 命令不存在、无 Docker Desktop 服务），此节暂未测。
+> 装好 Docker Desktop 后跑下面命令即可；**此节可选**——不装 Docker 也能用第 2 节的本地方式跑完整功能。
+
 ```powershell
 docker compose up --build
 # 打开 http://localhost:8000/（账号 admin/admin123）
@@ -263,4 +266,5 @@ Remove-Item Env:RAGKB_VLM_PROVIDER -ErrorAction SilentlyContinue
 | 2026-08-26 | 4.1 | `curl.exe -d '{"username":...}'` 报 `json_invalid`（JSON 双引号被 PowerShell 吞掉） | 已解决：JSON 请求改用 `Invoke-RestMethod` |
 | 2026-08-26 | 4.3/4.5 | `Invoke-RestMethod -Body` 传中文 question 被存成 `???? GPIO ???` | 已解决：JSON 先 `[System.Text.Encoding]::UTF8.GetBytes()` 转字节再传 |
 | 2026-08-26 | 5 | CLI 报 `ConfigurationError: Embedding API key is not configured` | 已解决：跑 CLI 前先 `$env:RAGKB_LLM_PROVIDER="fake"`、`$env:RAGKB_EMBEDDING_PROVIDER="fake"`（backup 除外） |
+| 2026-08-26 | 6 | `docker compose up` 报「无法将 docker 项识别为 cmdlet」 | 本机未安装 Docker Desktop；此节可选，装 Docker 后再测或跳过 |
 |  |  |  |  |
