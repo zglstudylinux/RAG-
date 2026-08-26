@@ -30,13 +30,15 @@ class CodeSplitter:
     def split_documents(self, documents: Sequence[Document]) -> list[Chunk]:
         chunks: list[Chunk] = []
         for document in documents:
+            source = str(document.metadata.get("source", ""))
+            page = document.metadata.get("page", "")
             for index, text in enumerate(self._split_text(document.content)):
                 metadata = dict(document.metadata)
                 metadata["chunk_index"] = index
                 metadata["kind"] = "code"
                 chunks.append(
                     Chunk(
-                        id=self._make_id(str(document.metadata.get("source", "")), index),
+                        id=self._make_id(source, page, index),
                         text=text,
                         metadata=metadata,
                     )
@@ -44,8 +46,10 @@ class CodeSplitter:
         return chunks
 
     @staticmethod
-    def _make_id(source: str, index: int) -> str:
-        digest = hashlib.sha1(f"{source}::code::{index}".encode("utf-8")).hexdigest()
+    def _make_id(source: str, page: object, index: int) -> str:
+        # Include the page number so multi-page documents (each page a Document with the
+        # same source) do not collide on chunk_index.
+        digest = hashlib.sha1(f"{source}::code::page{page}::{index}".encode("utf-8")).hexdigest()
         return digest[:16]
 
     def _split_text(self, text: str) -> list[str]:

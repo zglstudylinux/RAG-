@@ -323,3 +323,5 @@ cd D:\Code\AI\RAG
 | 2026-08-26 | 7 | `huggingface_hub` 下载模型失败（重定向校验报错 + 大文件断连） | 已解决：新增 `scripts/fetch_model.py`，走 hf-mirror + `Range` 断点续传 + 自动重试 |
 | 2026-08-26 | 7 | sentence-transformers 6.0 加载 bge-base-zh-v1.5 报 `Pooling.__init__() missing embedding_dimension` | 已解决：模型缺子目录 `1_Pooling/config.json`，tree 接口需 `?recursive=true` 才会列出子目录文件 |
 | 2026-08-26 | 7 | 切换 embedding（fake 256 维 → BGE 768 维）后检索维度不匹配 | 已解决：必须重建向量库（备份旧库 → 删 `data/ragkb.sqlite` → 重新 `ingest`） |
+| 2026-08-26 | 摄入5766 | 多页 PDF 丢数据：18 页 datasheet 只入库 5 块（1004→977，其余被覆盖） | 已解决：分块 ID 未含页码，各页 `chunk_index` 冲突；`splitter.py`/`code_splitter.py` 的 ID 已纳入 `page` |
+| 2026-08-26 | 摄入5766 | 删库重摄后混入历史数据（`SCH_Schematic_new.pdf`，T113 开发板原理图） | 已解决：残留的 `uvicorn --reload` 进程占着旧 DB；`Stop-Process` 杀掉残留 python 进程后重摄 |
