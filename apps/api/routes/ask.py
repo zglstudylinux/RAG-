@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from apps.api.deps import ensure_services, get_current_user
+from ragkb.core.acl import build_scope
 from ragkb.core.rag import RAGPipeline
 
 
@@ -23,10 +24,11 @@ async def ask(
     body: AskRequest,
     user: dict = Depends(get_current_user),
 ) -> dict[str, object]:
-    """Answer a question with citations from the knowledge base."""
+    """Answer a question with citations, restricted to the user's ACL scope."""
     ensure_services(request.app)
     pipeline: RAGPipeline = request.app.state.rag_pipeline
-    answer = await pipeline.answer(body.question, k=body.top_k)
+    scope = build_scope(user["role"], user["customers"], user["models"])
+    answer = await pipeline.answer(body.question, k=body.top_k, scope=scope)
     return {
         "answer": answer.text,
         "citations": [

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ragkb.core.acl import Scope
 from ragkb.core.models import Chunk, SearchResult
 from ragkb.indexing.sqlite_store import SQLiteVectorStore
 from ragkb.providers.base import EmbeddingProvider
@@ -34,13 +35,22 @@ class HybridRetriever:
             self._bm25 = BM25([tokenize(chunk.text) for chunk in self._chunks])
             self._fingerprint = count
 
-    async def retrieve(self, query: str, k: int = 4) -> list[SearchResult]:
+    async def retrieve(
+        self, query: str, k: int = 4, scope: Scope | None = None
+    ) -> list[SearchResult]:
         if self._store.count() == 0:
             return []
         self._ensure_index()
         query_embedding = await self._embedding.embed_query(query)
-        vector_results = self._store.search(query_embedding, k=self._candidate_k)
-        bm25_results = self._bm25.search(tokenize(query), top_k=self._candidate_k)
+        vector_results = self._store.search(query_embedding, k=self._candidate_k, scope=scope)
+
+        bm25_top = self._candidate_k if scope is None else len(self._chunks)
+        bm25_results = self._bm25.search(tokenize(query), top_k=bm25_top)
+        if scope is not None:
+            bm25_results = [
+                item for item in bm25_results if scope.allows(self._chunks[item[0]].metadata)
+            ]
+        bm25_results = bm25_results[: self._candidate_k]
 
         vector_rank = {result.chunk.id: rank for rank, result in enumerate(vector_results)}
         bm25_rank = {

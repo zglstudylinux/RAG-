@@ -3,8 +3,8 @@
 一个**可插拔、可复用、可迭代**的 RAG 知识库，面向芯片原厂 SDK 技术资料（SDK 源码、开发指南
 PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 
-> 当前状态：**M4 检索质量**（BM25+向量混合 RRF、可插拔 rerank、Hit@k/MRR 评估脚本）。
-> M3 代码+原理图、M2 Web 门户、M1 文档接入、M0 骨架已完成。权限、FAQ、工程化待后续里程碑。
+> 当前状态：**M5 双门户与权限**（RBAC 角色 + 按客户/型号的 collection ACL，客户自助问答隔离）。
+> M4 检索质量、M3 代码+原理图、M2 Web 门户、M1 文档接入、M0 骨架已完成。FAQ、工程化待后续。
 
 ## 设计原则
 
@@ -17,13 +17,13 @@ PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 ```
 ragkb/
 ├─ apps/
-│  ├─ api/            # FastAPI 后端（/health、/auth、/ingest、/ask、/documents）
+│  ├─ api/            # FastAPI 后端（/health、/auth、/ingest、/ask、/documents、/users）
 │  └─ cli/            # 命令行（ingest / ask）
 ├─ packages/ragkb/    # 可复用核心包
 │  ├─ config.py       # 配置（pydantic-settings，RAGKB_ 前缀）
 │  ├─ auth.py         # 密码散列 + JWT 令牌
 │  ├─ providers/      # LLM / Embedding 适配器（OpenAI 兼容 + fake 离线实现）
-│  ├─ core/           # 领域模型、摄入管线、RAG 问答管线
+│  ├─ core/           # 领域模型、摄入/问答管线、客户-型号 ACL
 │  ├─ loaders/        # PDF / Word / Markdown / 源码 / 原理图(VLM) 解析器
 │  ├─ chunking/       # 分块策略（文本 + 源码结构感知）
 │  ├─ indexing/       # SQLite 向量库 + 用户存储（可插拔 VectorStore 接口）
@@ -89,6 +89,23 @@ LLM 与 Embedding 均采用 OpenAI 兼容协议，一套客户端即可覆盖 De
 智谱 / SiliconFlow / Moonshot / OpenAI 等后端。VLM（原理图描述）同样走 OpenAI 兼容多模态协议
 （如 Qwen-VL / GPT-4o）。
 
+## 权限与双门户
+
+- 角色：`admin`（全量）、`support`（内部支持，全量检索）、`customer`（客户自助，仅见被授权资料）。
+- 资料在摄入时打上 `customer`/`model` 标签；客户账号通过 `customers`/`models` 白名单限定可见范围。
+- 内部门户（上传/管理资料、用户管理）仅 `admin`/`support` 可用；客户门户只做问答（自动按 ACL 隔离）。
+
+```bash
+# 管理员创建一个客户账号（仅能看 acme 客户的 x1 型号资料）
+curl -X POST http://127.0.0.1:8000/users \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"username":"acme","password":"acme-pass","role":"customer","customers":["acme"],"models":["x1"]}'
+
+# 摄入时打标签
+curl -F "file=@sdk.zip" -F "customer=acme" -F "model=x1" \
+  -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/ingest
+```
+
 ## 路线图
 
 | 里程碑 | 内容 |
@@ -98,7 +115,7 @@ LLM 与 Embedding 均采用 OpenAI 兼容协议，一套客户端即可覆盖 De
 | M2 | Web 门户 v1：上传/管理、检索聊天、引用展示、JWT 登录 ✅ |
 | M3 | 代码 + 原理图接入：代码结构感知分块、原理图 VLM 描述 ✅ |
 | M4 | 检索质量：BM25+向量混合、rerank、评估脚本 ✅ |
-| M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL |
+| M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL ✅ |
 | M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 |
 | M7 | 工程化：docker-compose、迁移、日志、备份、发布 v1 |
 

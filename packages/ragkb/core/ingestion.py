@@ -31,11 +31,19 @@ class IngestionPipeline:
         self._code_splitter = code_splitter or CodeSplitter()
         self._vlm = vlm
 
-    async def ingest_path(self, path: str | Path, *, source: str | None = None) -> int:
+    async def ingest_path(
+        self,
+        path: str | Path,
+        *,
+        source: str | None = None,
+        customer: str | None = None,
+        model: str | None = None,
+    ) -> int:
         """Ingest a file or directory and return the number of chunks stored.
 
         Image-heavy PDFs (schematics) are routed through the VLM when one is configured;
-        source files use a structure-aware code splitter.
+        source files use a structure-aware code splitter. ``customer``/``model`` tag the
+        chunks for ACL scoping.
         """
         target = Path(path)
         files = self._collect_files(target)
@@ -50,10 +58,14 @@ class IngestionPipeline:
                 docs = await SchematicLoader(self._vlm).load(file_path)
             else:
                 docs = load_document(file_path)
-            if single_file and source is not None:
-                for document in docs:
+            for document in docs:
+                if single_file and source is not None:
                     document.metadata["source"] = source
                     document.metadata["title"] = Path(source).stem
+                if customer is not None:
+                    document.metadata["customer"] = customer
+                if model is not None:
+                    document.metadata["model"] = model
             documents.extend(docs)
         if not documents:
             return 0

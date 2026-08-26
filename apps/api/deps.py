@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 
 from ragkb.auth import decode_token
 from ragkb.chunking.code_splitter import CodeSplitter
@@ -50,8 +50,8 @@ def ensure_services(app: FastAPI) -> None:
 
 async def get_current_user(
     request: Request, authorization: str | None = Header(default=None)
-) -> dict[str, str]:
-    """Resolve the authenticated user from the ``Authorization: Bearer`` header."""
+) -> dict:
+    """Resolve the authenticated user (role + ACL) from the bearer token."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
@@ -60,4 +60,14 @@ async def get_current_user(
     payload = decode_token(request.app.state.settings.jwt_secret, token)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    return {"username": payload["sub"], "role": payload.get("role", "admin")}
+    user = request.app.state.user_store.get_user(payload["sub"])
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
+
+
+async def require_internal(user: dict = Depends(get_current_user)) -> dict:
+    """Allow only admin/support (internal portal) roles."""
+    if user["role"] not in ("admin", "support"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return user

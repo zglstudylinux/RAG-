@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ragkb.core.acl import Scope
 from ragkb.core.models import Chunk, SearchResult
 from ragkb.indexing.base import VectorStore
 
@@ -30,7 +31,8 @@ class SQLiteVectorStore(VectorStore):
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS chunks ("
             "id TEXT PRIMARY KEY, source TEXT NOT NULL, text TEXT NOT NULL, "
-            "metadata TEXT NOT NULL, embedding BLOB NOT NULL)"
+            "metadata TEXT NOT NULL, embedding BLOB NOT NULL, "
+            "customer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '')"
         )
         self._migrate()
         self._conn.commit()
@@ -38,15 +40,18 @@ class SQLiteVectorStore(VectorStore):
     def _migrate(self) -> None:
         columns = {row[1] for row in self._conn.execute("PRAGMA table_info(chunks)").fetchall()}
         if "source" not in columns:
-            self._conn.execute(
-                "ALTER TABLE chunks ADD COLUMN source TEXT NOT NULL DEFAULT ''"
-            )
+            self._conn.execute("ALTER TABLE chunks ADD COLUMN source TEXT NOT NULL DEFAULT ''")
             try:
                 self._conn.execute(
                     "UPDATE chunks SET source = COALESCE(json_extract(metadata, '$.source'), '')"
                 )
             except sqlite3.OperationalError:
                 pass  # json_extract unavailable; leave existing rows empty.
+        for column in ("customer", "model"):
+            if column not in columns:
+                self._conn.execute(
+                    f"ALTER TABLE chunks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
+                )
 
     def add(self, chunks: Sequence[Chunk], embeddings: Sequence[Sequence[float]]) -> None:
         if len(chunks) != len(embeddings):
@@ -54,24 +59,30 @@ class SQLiteVectorStore(VectorStore):
         rows = []
         for chunk, embedding in zip(chunks, embeddings):
             blob = np.asarray(embedding, dtype=np.float32).tobytes()
+            metadata = chunk.metadata
             rows.append(
                 (
                     chunk.id,
-                    str(chunk.metadata.get("source", "")),
+                    str(metadata.get("source", "")),
                     chunk.text,
-                    json.dumps(chunk.metadata, ensure_ascii=False),
+                    json.dumps(metadata, ensure_ascii=False),
                     blob,
+                    str(metadata.get("customer", "")),
+                    str(metadata.get("model", "")),
                 )
             )
         with self._lock:
             self._conn.executemany(
-                "INSERT OR REPLACE INTO chunks (id, source, text, metadata, embedding) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO chunks "
+                "(id, source, text, metadata, embedding, customer, model) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
             self._conn.commit()
 
-    def search(self, query_embedding: Sequence[float], k: int = 4) -> list[SearchResult]:
+    def search(
+        self, query_embedding: Sequence[float], k: int = 4, scope: Scope | None = None
+    ) -> list[SearchResult]:
         if k <= 0:
             return []
         with self._lock:
@@ -80,29 +91,45 @@ class SQLiteVectorStore(VectorStore):
             ).fetchall()
         if not rows:
             return []
-        matrix = np.vstack([np.frombuffer(row[3], dtype=np.float32) for row in rows])
+        entries: list[tuple[str, str, dict, bytes]] = []
+        for row in rows:
+            metadata = json.loads(row[2])
+            if scope is not None and not scope.allows(metadata):
+                continue
+            entries.append((row[0], row[1], metadata, row[3]))
+        if not entries:
+            return []
+        matrix = np.vstack([np.frombuffer(entry[3], dtype=np.float32) for entry in entries])
         query = np.asarray(query_embedding, dtype=np.float32)
         norms = np.linalg.norm(matrix, axis=1)
         norms[norms == 0] = 1.0
         query_norm = np.linalg.norm(query)
         if query_norm == 0:
-            scores = np.zeros(len(rows), dtype=np.float32)
+            scores = np.zeros(len(entries), dtype=np.float32)
         else:
             scores = (matrix @ query) / (norms * query_norm)
         top_indices = np.argsort(-scores)[:k]
         results: list[SearchResult] = []
         for index in top_indices:
-            row = rows[int(index)]
-            chunk = Chunk(id=row[0], text=row[1], metadata=json.loads(row[2]))
-            results.append(SearchResult(chunk=chunk, score=float(scores[index])))
+            entry = entries[int(index)]
+            results.append(
+                SearchResult(
+                    chunk=Chunk(id=entry[0], text=entry[1], metadata=entry[2]),
+                    score=float(scores[index]),
+                )
+            )
         return results
 
     def list_sources(self) -> list[dict[str, object]]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT source, COUNT(*) FROM chunks GROUP BY source ORDER BY source"
+                "SELECT source, customer, model, COUNT(*) FROM chunks "
+                "GROUP BY source, customer, model ORDER BY source"
             ).fetchall()
-        return [{"source": row[0], "chunks": row[1]} for row in rows]
+        return [
+            {"source": row[0], "customer": row[1], "model": row[2], "chunks": row[3]}
+            for row in rows
+        ]
 
     def delete_source(self, source: str) -> int:
         with self._lock:

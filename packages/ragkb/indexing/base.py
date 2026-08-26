@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
+from ragkb.core.acl import Scope
 from ragkb.core.models import Chunk, SearchResult
 
 
@@ -16,8 +17,10 @@ class VectorStore(ABC):
         """Add chunks with their embeddings."""
 
     @abstractmethod
-    def search(self, query_embedding: Sequence[float], k: int = 4) -> list[SearchResult]:
-        """Return the k most similar chunks."""
+    def search(
+        self, query_embedding: Sequence[float], k: int = 4, scope: Scope | None = None
+    ) -> list[SearchResult]:
+        """Return the k most similar chunks (optionally restricted to a scope)."""
 
     @abstractmethod
     def count(self) -> int:

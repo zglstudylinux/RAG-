@@ -1,13 +1,13 @@
-"""Document ingestion endpoint."""
+"""Document ingestion endpoint (internal portal only)."""
 
 from __future__ import annotations
 
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 
-from apps.api.deps import ensure_services, get_current_user
+from apps.api.deps import ensure_services, require_internal
 from ragkb.core.ingestion import IngestionPipeline
 
 router = APIRouter(tags=["ingest"])
@@ -17,9 +17,11 @@ router = APIRouter(tags=["ingest"])
 async def ingest(
     request: Request,
     file: UploadFile = File(...),
-    user: dict = Depends(get_current_user),
+    customer: str | None = Form(default=None),
+    model: str | None = Form(default=None),
+    user: dict = Depends(require_internal),
 ) -> dict[str, object]:
-    """Upload a document and index its chunks."""
+    """Upload a document, tag it with a customer/model, and index its chunks."""
     ensure_services(request.app)
     pipeline: IngestionPipeline = request.app.state.ingestion_pipeline
     filename = file.filename or "upload.txt"
@@ -28,7 +30,9 @@ async def ingest(
         tmp.write(await file.read())
         tmp_path = tmp.name
     try:
-        count = await pipeline.ingest_path(tmp_path, source=filename)
+        count = await pipeline.ingest_path(
+            tmp_path, source=filename, customer=customer, model=model
+        )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
-    return {"status": "ok", "filename": filename, "chunks": count}
+    return {"status": "ok", "filename": filename, "customer": customer, "chunks": count}
