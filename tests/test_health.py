@@ -1,0 +1,18 @@
+"""Tests for the FastAPI application health endpoint."""
+
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+
+from apps.api.main import create_app
+
+
+def test_health_endpoint() -> None:
+    client = TestClient(create_app())
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["service"] == "ragkb"
+    assert body["version"]
+    assert "config" in body

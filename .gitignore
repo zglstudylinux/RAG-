@@ -1,0 +1,47 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- RAG runtime data (indexes / vector stores / parsed artifacts) ---
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.chroma/
+*.parquet
+
+# --- Uploaded / proprietary source material (do NOT commit) ---
+uploads/
+raw/
+samples/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+logs/

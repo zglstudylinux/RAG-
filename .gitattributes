@@ -1,0 +1,11 @@
+# Normalize line endings to LF in the repository, keep them LF in the working tree
+# for text source files (avoids CRLF churn across Windows/Linux/macOS and CI).
+* text=auto
+
+*.py      text eol=lf
+*.toml    text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.example text eol=lf
