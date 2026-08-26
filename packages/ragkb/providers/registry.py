@@ -8,6 +8,7 @@ from ragkb.providers.base import EmbeddingProvider, LLMProvider
 from ragkb.providers.embedding import OpenAICompatibleEmbedding
 from ragkb.providers.fake import FakeEmbedding, FakeLLM, FakeVLM
 from ragkb.providers.llm import OpenAICompatibleLLM
+from ragkb.providers.local import LocalEmbedding
 from ragkb.providers.vlm import OpenAICompatibleVLM, VLMProvider
 
 
@@ -39,6 +40,8 @@ def build_embedding(settings: Settings) -> EmbeddingProvider:
             api_key=settings.embedding_api_key,
             model=settings.embedding_model,
         )
+    if settings.embedding_provider == "local":
+        return LocalEmbedding(settings.embedding_model)
     if settings.embedding_provider == "fake":
         return FakeEmbedding()
     raise ValueError(f"Unsupported embedding provider: {settings.embedding_provider!r}")

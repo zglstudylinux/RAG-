@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.2
 
     # Embedding
-    embedding_provider: str = "openai-compatible"
+    embedding_provider: str = "openai-compatible"  # "openai-compatible" | "local" | "fake"
     embedding_base_url: str = "https://api.siliconflow.cn/v1"
     embedding_api_key: str = ""
     embedding_model: str = "BAAI/bge-m3"
