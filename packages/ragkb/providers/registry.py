@@ -6,8 +6,9 @@ from ragkb.config import Settings
 from ragkb.core.errors import ConfigurationError
 from ragkb.providers.base import EmbeddingProvider, LLMProvider
 from ragkb.providers.embedding import OpenAICompatibleEmbedding
-from ragkb.providers.fake import FakeEmbedding, FakeLLM
+from ragkb.providers.fake import FakeEmbedding, FakeLLM, FakeVLM
 from ragkb.providers.llm import OpenAICompatibleLLM
+from ragkb.providers.vlm import OpenAICompatibleVLM, VLMProvider
 
 
 def build_llm(settings: Settings) -> LLMProvider:
@@ -41,3 +42,20 @@ def build_embedding(settings: Settings) -> EmbeddingProvider:
     if settings.embedding_provider == "fake":
         return FakeEmbedding()
     raise ValueError(f"Unsupported embedding provider: {settings.embedding_provider!r}")
+
+
+def build_vlm(settings: Settings) -> VLMProvider | None:
+    """Build the configured VLM provider, or None when it is disabled."""
+    if settings.vlm_provider in ("", "none"):
+        return None
+    if settings.vlm_provider == "fake":
+        return FakeVLM()
+    if settings.vlm_provider == "openai-compatible":
+        if not settings.vlm_api_key:
+            raise ConfigurationError("VLM API key is not configured (set RAGKB_VLM_API_KEY).")
+        return OpenAICompatibleVLM(
+            base_url=settings.vlm_base_url,
+            api_key=settings.vlm_api_key,
+            model=settings.vlm_model,
+        )
+    raise ValueError(f"Unsupported VLM provider: {settings.vlm_provider!r}")

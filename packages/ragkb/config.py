@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     embedding_api_key: str = ""
     embedding_model: str = "BAAI/bge-m3"
 
+    # Vision-language model (for schematic / image-heavy PDFs)
+    vlm_provider: str = "none"
+    vlm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    vlm_api_key: str = ""
+    vlm_model: str = "qwen-vl-max"
+    schematic_min_chars_per_page: int = 80
+
     # Storage & chunking
     store_path: str = "data/ragkb.sqlite"
     chunk_size: int = 800
@@ -53,6 +60,8 @@ class Settings(BaseSettings):
             "embedding_model": self.embedding_model,
             "embedding_base_url": self.embedding_base_url,
             "embedding_configured": bool(self.embedding_api_key),
+            "vlm_provider": self.vlm_provider,
+            "vlm_configured": bool(self.vlm_api_key),
             "store_path": self.store_path,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,

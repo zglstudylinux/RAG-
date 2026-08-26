@@ -5,11 +5,13 @@ from __future__ import annotations
 from fastapi import FastAPI, Header, HTTPException, Request, status
 
 from ragkb.auth import decode_token
+from ragkb.chunking.code_splitter import CodeSplitter
 from ragkb.chunking.splitter import RecursiveCharacterSplitter
 from ragkb.config import Settings
+from ragkb.core.errors import ConfigurationError
 from ragkb.core.ingestion import IngestionPipeline
 from ragkb.core.rag import RAGPipeline
-from ragkb.providers.registry import build_embedding, build_llm
+from ragkb.providers.registry import build_embedding, build_llm, build_vlm
 
 
 def ensure_services(app: FastAPI) -> None:
@@ -20,10 +22,18 @@ def ensure_services(app: FastAPI) -> None:
     store = app.state.store
     embedding = build_embedding(settings)
     llm = build_llm(settings)
+    try:
+        vlm = build_vlm(settings)
+    except ConfigurationError:
+        vlm = None  # VLM is optional; schematics fall back to text extraction.
     splitter = RecursiveCharacterSplitter(settings.chunk_size, settings.chunk_overlap)
+    code_splitter = CodeSplitter()
     app.state.embedding = embedding
     app.state.llm = llm
-    app.state.ingestion_pipeline = IngestionPipeline(embedding, store, splitter)
+    app.state.vlm = vlm
+    app.state.ingestion_pipeline = IngestionPipeline(
+        embedding, store, splitter, code_splitter, vlm
+    )
     app.state.rag_pipeline = RAGPipeline(embedding, store, llm)
 
 

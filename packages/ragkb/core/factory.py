@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from ragkb.chunking.code_splitter import CodeSplitter
 from ragkb.chunking.splitter import RecursiveCharacterSplitter
 from ragkb.config import Settings
 from ragkb.core.ingestion import IngestionPipeline
 from ragkb.core.rag import RAGPipeline
 from ragkb.indexing.sqlite_store import SQLiteVectorStore
-from ragkb.providers.registry import build_embedding, build_llm
+from ragkb.providers.registry import build_embedding, build_llm, build_vlm
 
 
 def build_store(settings: Settings) -> SQLiteVectorStore:
@@ -22,7 +23,15 @@ def build_services(
     store = build_store(settings)
     embedding = build_embedding(settings)
     llm = build_llm(settings)
+    vlm = build_vlm(settings)
     splitter = RecursiveCharacterSplitter(settings.chunk_size, settings.chunk_overlap)
-    ingestion = IngestionPipeline(embedding=embedding, store=store, splitter=splitter)
+    code_splitter = CodeSplitter()
+    ingestion = IngestionPipeline(
+        embedding=embedding,
+        store=store,
+        splitter=splitter,
+        code_splitter=code_splitter,
+        vlm=vlm,
+    )
     rag = RAGPipeline(embedding=embedding, store=store, llm=llm)
     return ingestion, rag, store

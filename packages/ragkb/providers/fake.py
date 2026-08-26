@@ -7,6 +7,7 @@ import math
 from collections.abc import AsyncIterator, Sequence
 
 from ragkb.providers.base import ChatResult, EmbeddingProvider, LLMProvider, Message
+from ragkb.providers.vlm import VLMProvider
 
 
 class FakeEmbedding(EmbeddingProvider):
@@ -53,3 +54,15 @@ class FakeLLM(LLMProvider):
     async def stream(self, messages: Sequence[Message], **kwargs: object) -> AsyncIterator[str]:
         self.last_messages = list(messages)
         yield self._answer
+
+
+class FakeVLM(VLMProvider):
+    """Returns a deterministic description and records its calls."""
+
+    def __init__(self, description: str = "fake schematic description") -> None:
+        self._description = description
+        self.calls: list[tuple[str, str]] = []
+
+    async def describe_image(self, image_bytes: bytes, mime_type: str, prompt: str) -> str:
+        self.calls.append((mime_type, prompt))
+        return self._description

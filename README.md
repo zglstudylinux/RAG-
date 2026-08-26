@@ -3,9 +3,9 @@
 一个**可插拔、可复用、可迭代**的 RAG 知识库，面向芯片原厂 SDK 技术资料（SDK 源码、开发指南
 PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 
-> 当前状态：**M2 Web 门户**（JWT 登录 + 网页上传/管理资料 + 检索聊天带引用）。M1 文档接入
-> （PDF/Word/Markdown 解析 → 分块 → 向量化入库 → CLI/API 问答）与 M0 骨架已完成。
-> 代码/原理图接入、混合检索、权限等能力在后续里程碑中逐步加入。
+> 当前状态：**M3 代码 + 原理图接入**（源码结构感知分块、图片型 PDF 走 VLM 生成可检索描述）。
+> M2 Web 门户（JWT + 上传/管理 + 聊天带引用）、M1 文档接入、M0 骨架已完成。
+> 混合检索、权限、FAQ 等能力在后续里程碑中逐步加入。
 
 ## 设计原则
 
@@ -25,8 +25,8 @@ ragkb/
 │  ├─ auth.py         # 密码散列 + JWT 令牌
 │  ├─ providers/      # LLM / Embedding 适配器（OpenAI 兼容 + fake 离线实现）
 │  ├─ core/           # 领域模型、摄入管线、RAG 问答管线
-│  ├─ loaders/        # PDF / Word / Markdown 解析器
-│  ├─ chunking/       # 分块策略（RecursiveCharacterSplitter）
+│  ├─ loaders/        # PDF / Word / Markdown / 源码 / 原理图(VLM) 解析器
+│  ├─ chunking/       # 分块策略（文本 + 源码结构感知）
 │  ├─ indexing/       # SQLite 向量库 + 用户存储（可插拔 VectorStore 接口）
 │  ├─ retrieval/      # 向量检索（BM25/rerank 后续）
 │  ├─ web/            # 内置单页门户（登录 / 上传 / 问答）
@@ -86,7 +86,8 @@ curl -X POST http://127.0.0.1:8000/ask \
 
 所有配置项通过环境变量（前缀 `RAGKB_`）或 `.env` 文件注入，见 `.env.example`。
 LLM 与 Embedding 均采用 OpenAI 兼容协议，一套客户端即可覆盖 DeepSeek / Qwen(DashScope) /
-智谱 / SiliconFlow / Moonshot / OpenAI 等后端。
+智谱 / SiliconFlow / Moonshot / OpenAI 等后端。VLM（原理图描述）同样走 OpenAI 兼容多模态协议
+（如 Qwen-VL / GPT-4o）。
 
 ## 路线图
 
@@ -95,7 +96,7 @@ LLM 与 Embedding 均采用 OpenAI 兼容协议，一套客户端即可覆盖 De
 | M0 | 骨架：仓库结构、配置、Provider 抽象、FastAPI 健康检查、测试/CI ✅ |
 | M1 | 文档接入：PDF/Word/MD 解析 → 分块 → 入库 → CLI/API 问答（带引用）✅ |
 | M2 | Web 门户 v1：上传/管理、检索聊天、引用展示、JWT 登录 ✅ |
-| M3 | 代码 + 原理图接入：tree-sitter 代码分块、原理图 OCR+VLM 描述 |
+| M3 | 代码 + 原理图接入：代码结构感知分块、原理图 VLM 描述 ✅ |
 | M4 | 检索质量：BM25+向量混合、rerank、评估脚本 |
 | M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL |
 | M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 |
