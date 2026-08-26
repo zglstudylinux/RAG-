@@ -81,3 +81,38 @@ def test_ingest_with_category_and_filter(monkeypatch, tmp_path) -> None:
 def test_categories_require_auth(monkeypatch, tmp_path) -> None:
     client = _client(monkeypatch, tmp_path)
     assert client.get("/categories").status_code == 401
+
+
+def test_full_category_lifecycle(monkeypatch, tmp_path) -> None:
+    """Create -> ingest -> ask (category-filtered) -> cascade delete, end to end."""
+    client = _client(monkeypatch, tmp_path)
+    headers = _login(client)
+
+    client.post("/categories", json={"name": "A"}, headers=headers)
+    client.post("/categories", json={"name": "B"}, headers=headers)
+    client.post(
+        "/ingest",
+        files={"file": ("a.md", "# GPIO\n\nGPIO pins are used.\n".encode(), "text/markdown")},
+        data={"category": "A"},
+        headers=headers,
+    )
+    client.post(
+        "/ingest",
+        files={"file": ("b.md", "# UART\n\nUART baud rate is 115200.\n".encode(), "text/markdown")},
+        data={"category": "B"},
+        headers=headers,
+    )
+
+    response = client.post(
+        "/ask", json={"question": "GPIO", "category": "A"}, headers=headers
+    )
+    assert response.status_code == 200
+    citations = response.json()["citations"]
+    assert citations
+    assert all("a.md" in citation["source"] for citation in citations)
+
+    response = client.delete("/categories/A", headers=headers)
+    assert response.status_code == 200
+    sources = [d["source"] for d in client.get("/documents", headers=headers).json()["documents"]]
+    assert "a.md" not in sources
+    assert "b.md" in sources

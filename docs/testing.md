@@ -3,7 +3,7 @@
 > 本文件是**持续更新的测试记录**：按下面步骤一项一项测，每一步把「实际结果」填进去；
 > 遇到报错就把**命令 + 完整报错**贴到文末「问题记录」表格里。
 >
-> 当前版本：v1.0.0　｜　最后更新：2026-08-26
+> 当前版本：v1.1.0　｜　最后更新：2026-08-26
 
 ## 0. 前置约定（先读）
 
@@ -22,11 +22,11 @@
 ## 1. 自动化测试 ✅
 
 ```powershell
-.venv\Scripts\python -m pytest -q   # 预期：78 passed
+.venv\Scripts\python -m pytest -q   # 预期：101 passed
 .venv\Scripts\ruff check .          # 预期：All checks passed!
 ```
 
-- [x] 2026-08-26 结果：`78 passed in 5.81s`、`All checks passed!` ✅
+- [x] 2026-08-26 结果：`101 passed in 7.10s`、`All checks passed!` ✅
 
 ---
 
@@ -155,6 +155,37 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/qa/similar?question=GP
 ```
 
 预期：返回对象含 `similar` 数组（`id`、`question`、`score`）。
+
+### 4.7 分类管理（多芯片 / 多业务）
+
+```powershell
+# 建业务域（⚠️ 含中文的 name 也要走 UTF-8 字节，同 4.3）
+$body = [System.Text.Encoding]::UTF8.GetBytes('{"name":"芯片SDK"}')
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/categories -Headers @{Authorization="Bearer $token"} -ContentType "application/json; charset=utf-8" -Body $body
+
+# 建分类（挂到某业务域下）
+$body = [System.Text.Encoding]::UTF8.GetBytes('{"name":"AB5766C","parent":"芯片SDK"}')
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/categories -Headers @{Authorization="Bearer $token"} -ContentType "application/json; charset=utf-8" -Body $body
+
+# 列出分类（含每类的块数）
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/categories -Headers @{Authorization="Bearer $token"}
+
+# 上传资料并打分类标签（.zip 会自动解压）
+curl.exe -s -X POST http://127.0.0.1:8000/ingest -H "Authorization: Bearer $token" -F "file=@sdk.zip" -F "category=AB5766C"
+
+# 按分类过滤资料列表
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/documents?category=AB5766C" -Headers @{Authorization="Bearer $token"}
+
+# 重命名分类（会同步改其下资料标签） / 删除分类（级联删除其下资料）
+Invoke-RestMethod -Method Patch -Uri http://127.0.0.1:8000/categories/AB5766C -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"new_name":"AB5766D"}'
+Invoke-RestMethod -Method Delete -Uri http://127.0.0.1:8000/categories/AB5766D -Headers @{Authorization="Bearer $token"}
+```
+
+> 一次性预置默认分类（芯片SDK → AB5766C/AB573X/BT897X/BT895X）并把现有 5766 资料回填到
+> AB5766C（幂等，可重复执行）：`.venv\Scripts\python scripts\seed_categories.py`
+
+> 浏览器端：「分类管理」标签页可建/重命名/删分类；「资料管理」上传时选分类、按分类分组查看/删除；
+> 「问答」里可限定某个分类提问。
 
 ---
 
@@ -329,3 +360,4 @@ cd D:\Code\AI\RAG
 | 2026-08-26 | embedding选型 | qwen3.7 批量上限 20 条/请求（batch=50 报 `batch size should not be larger than 20`），摄入 1000+ 块一次发会失败 | 已解决：`OpenAICompatibleEmbedding` 加分批（`RAGKB_EMBEDDING_BATCH_SIZE=20`），新增单测 |
 | 2026-08-26 | 检索 | 加中文《SDK开发指南》后，`top_k=4` 时「SAR ADC 触摸按键」问被挤出去（英文 datasheet 排不上） | 已解决：`RAGKB_RETRIEVAL_TOP_K=6` 后恢复正确；18 个测试案例全部通过 |
 | 2026-08-26 | 引用核验 | 「引用来源」列表把检索到的 6 块全列出，但答案正文只标了 1-3 条，其余是目录页/无关章节等无效候选（如 RT-Thread 题 6 条里只有 1 条相关） | 已解决：`RAGPipeline` 只返回正文实际引用 `[n]` 的来源，并同步重写编号保持一致（新增单测） |
+| 2026-08-26 | 4.7 | 用 PowerShell `Invoke-RestMethod -Body` 传中文分类名（`芯片SDK`）被存成 `??SDK` | 已解决：含中文的 body 必须 `[System.Text.Encoding]::UTF8.GetBytes()` 转字节再传（同 4.3）；或直接用 `scripts/seed_categories.py` 建分类 |
