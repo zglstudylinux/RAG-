@@ -10,8 +10,9 @@
 - 所有命令都在 `D:\Code\AI\RAG` 目录下执行。
 - **不要用 `.venv\Scripts\activate`**（PowerShell 下会报「无法加载模块 .venv」）。
   统一直接用虚拟环境里的解释器：`.venv\Scripts\python`。
-- PowerShell 里 `curl` 是 `Invoke-WebRequest` 的别名，语法不一样；本手册所有 curl 一律写
-  **`curl.exe`**（Windows 10 自带真正的 curl）。
+- PowerShell 里 `curl` 是 `Invoke-WebRequest` 的别名，语法不一样。
+  **JSON 请求用 `Invoke-RestMethod`**（见第 4 节）；只有文件上传/看状态码用 `curl.exe`
+  （Windows 10 自带真正的 curl）。
 - 离线测试用 fake provider，**不需要任何 API key**；要真实效果再看「第 7 节」。
 - 已知无害现象：`GET /favicon.ico -> 404` 正常；地址栏里误输入文字会看到
   `GET /%2A%2A...` 的 404，忽略即可。
@@ -63,47 +64,50 @@ $env:RAGKB_VLM_PROVIDER = "fake"      # 可选：想测「原理图 PDF 识别�
 
 ---
 
-## 4. API 功能测试（curl.exe）
+## 4. API 功能测试（PowerShell：Invoke-RestMethod）
 
+> ⚠️ 不要用 `curl.exe -d` 传 JSON——Windows PowerShell 会把 JSON 里的双引号吞掉，导致
+> `json_invalid`。JSON 请求统一用 PowerShell 原生的 `Invoke-RestMethod`（可靠、无转义坑）；
+> 只有**文件上传**（multipart）和**只看状态码**两处用 `curl.exe`（无嵌套引号，不受影响）。
 > 下面用到的 `$token` 变量在同一个窗口里定义一次即可，之后一直复用。
 
 ### 4.1 登录拿 token
 
 ```powershell
-$resp = curl.exe -s -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin123"}'
+$resp = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/auth/login -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}'
 $resp
-$token = ($resp | ConvertFrom-Json).token
+$token = $resp.token
 ```
 
-预期：返回一段 JSON，里面有 `token`。
+预期：`$resp` 里能看到 `token` 字段；`$token` 有值。
 
-### 4.2 上传文档并打客户标签（multipart）
+### 4.2 上传文档并打客户标签（multipart，用 curl.exe）
 
 ```powershell
-curl.exe -s -X POST http://127.0.0.1:8000/ingest -H "Authorization: Bearer $token" -F "file=@D:\Code\AI\RAG\examples\eval_example.json" -F "customer=acme" -F "model=x1"
+curl.exe -s -X POST http://127.0.0.1:8000/ingest -H "Authorization: Bearer $token" -F "file=@D:\Code\AI\RAG\README.md" -F "customer=acme" -F "model=x1"
 ```
 
-预期：返回类似 `{"chunks": N, ...}`，N > 0。
+预期：返回 `{"chunks": N, ...}`，N > 0。
 
 ### 4.3 问答（带引用）
 
 ```powershell
-curl.exe -s -X POST http://127.0.0.1:8000/ask -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"question":"GPIO 怎么初始化？"}'
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"question":"如何配置 GPIO 引脚？"}'
 ```
 
-预期：返回 `{"answer": "...", "citations": [{"source": "...", "page": null, "snippet": "..."}]}`。
+预期：返回对象含 `answer` 和 `citations`（每个 citation 有 `source`）。
 
 ### 4.4 双门户 ACL（创建客户账号 → 验证隔离）
 
 ```powershell
 # 管理员创建客户账号：只允许看 acme 客户、x1 型号的资料
-curl.exe -s -X POST http://127.0.0.1:8000/users -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"username":"acme","password":"acme-pass","role":"customer","customers":["acme"],"models":["x1"]}'
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/users -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"username":"acme","password":"acme-pass","role":"customer","customers":["acme"],"models":["x1"]}'
 
 # 用客户账号登录
-$resp2 = curl.exe -s -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" -d '{"username":"acme","password":"acme-pass"}'
-$acmeToken = ($resp2 | ConvertFrom-Json).token
+$resp2 = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/auth/login -ContentType "application/json" -Body '{"username":"acme","password":"acme-pass"}'
+$acmeToken = $resp2.token
 
-# 客户访问用户管理接口：应被拒绝
+# 客户访问用户管理接口：应被拒绝（用 curl.exe 只看状态码）
 curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:8000/users -H "Authorization: Bearer $acmeToken"
 ```
 
@@ -116,28 +120,27 @@ curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:8000/users -H "Authorizati
 
 ```powershell
 # 1. 先问一次，会产生一条 Q&A 记录
-curl.exe -s -X POST http://127.0.0.1:8000/ask -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"question":"GPIO 怎么初始化？"}'
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"question":"如何配置 GPIO 引脚？"}' | Out-Null
 
 # 2. 查看最近 Q&A，记下 id
-curl.exe -s http://127.0.0.1:8000/qa/recent -H "Authorization: Bearer $token"
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8000/qa/recent -Headers @{Authorization="Bearer $token"}
 
-# 3. 反馈（1=有用 / 0=没用）
-curl.exe -s -X POST http://127.0.0.1:8000/qa/1/feedback -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"feedback":1}'
+# 3. 反馈（1=有用 / 0=没用；把 /qa/1/ 里的 1 换成第 2 步的真实 id）
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/qa/1/feedback -Headers @{Authorization="Bearer $token"} -ContentType "application/json" -Body '{"feedback":1}'
 
-# 4. 沉淀为 FAQ（会把该问答重新写入知识库，以后能被检索到）
-curl.exe -s -X POST http://127.0.0.1:8000/qa/1/promote -H "Authorization: Bearer $token"
+# 4. 沉淀为 FAQ（把该问答重新写入知识库，以后能被检索到）
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/qa/1/promote -Headers @{Authorization="Bearer $token"}
 ```
 
-> 步骤 3、4 里的 `/qa/1/...` 里的 `1` 换成第 2 步看到的真实 id。
 > promote 后再调 `/ask`，引用里应多出一个 `source` 形如 `faq:1` 的来源。
 
 ### 4.6 相似问题
 
 ```powershell
-curl.exe -s "http://127.0.0.1:8000/qa/similar?question=GPIO&k=5" -H "Authorization: Bearer $token"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/qa/similar?question=GPIO&k=5" -Headers @{Authorization="Bearer $token"}
 ```
 
-预期：返回 `{"similar": [{"id":1,"question":"...","score":0.xx}, ...]}`。
+预期：返回对象含 `similar` 数组（`id`、`question`、`score`）。
 
 ---
 
@@ -225,4 +228,5 @@ Remove-Item Env:RAGKB_VLM_PROVIDER -ErrorAction SilentlyContinue
 | 日期 | 步骤 | 现象/报错（命令 + 完整输出） | 状态 |
 |---|---|---|---|
 | 2026-08-26 | 0 | `.venv\Scripts\activate` 报「无法加载模块 .venv」 | 已解决：改用 `.venv\Scripts\python` 直接执行 |
+| 2026-08-26 | 4.1 | `curl.exe -d '{"username":...}'` 报 `json_invalid`（JSON 双引号被 PowerShell 吞掉） | 已解决：JSON 请求改用 `Invoke-RestMethod` |
 |  |  |  |  |
