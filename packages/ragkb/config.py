@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     embedding_api_key: str = ""
     embedding_model: str = "BAAI/bge-m3"
 
+    # Storage & chunking
+    store_path: str = "data/ragkb.sqlite"
+    chunk_size: int = 800
+    chunk_overlap: int = 100
+    retrieval_top_k: int = 4
+
     @property
     def public_summary(self) -> dict[str, object]:
         """Sanitized view of the config (no secrets) for health endpoints."""
@@ -41,6 +47,10 @@ class Settings(BaseSettings):
             "embedding_model": self.embedding_model,
             "embedding_base_url": self.embedding_base_url,
             "embedding_configured": bool(self.embedding_api_key),
+            "store_path": self.store_path,
+            "chunk_size": self.chunk_size,
+            "chunk_overlap": self.chunk_overlap,
+            "retrieval_top_k": self.retrieval_top_k,
         }
 
 

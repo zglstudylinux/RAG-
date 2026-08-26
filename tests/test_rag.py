@@ -1,0 +1,54 @@
+"""End-to-end RAG pipeline tests (offline)."""
+
+from __future__ import annotations
+
+import asyncio
+
+from ragkb.chunking.splitter import RecursiveCharacterSplitter
+from ragkb.core.ingestion import IngestionPipeline
+from ragkb.core.rag import RAGPipeline
+from ragkb.indexing.sqlite_store import SQLiteVectorStore
+from ragkb.providers.fake import FakeEmbedding, FakeLLM
+
+
+def _build(tmp_path) -> tuple[RAGPipeline, FakeLLM, SQLiteVectorStore]:
+    guide = tmp_path / "guide.md"
+    guide.write_text(
+        "# GPIO\n\nGPIO pins are used for input and output.\n\n"
+        "# UART\n\nUART baud rate is 115200.\n",
+        encoding="utf-8",
+    )
+    store = SQLiteVectorStore(":memory:")
+    embedding = FakeEmbedding(dim=128)
+    ingestion = IngestionPipeline(
+        embedding=embedding,
+        store=store,
+        splitter=RecursiveCharacterSplitter(chunk_size=50, chunk_overlap=0),
+    )
+    asyncio.run(ingestion.ingest_path(guide))
+    llm = FakeLLM()
+    return RAGPipeline(embedding=embedding, store=store, llm=llm), llm, store
+
+
+def test_answer_returns_top_citation_from_matching_doc(tmp_path) -> None:
+    rag, _, _ = _build(tmp_path)
+    answer = asyncio.run(rag.answer("How to configure GPIO pins?"))
+    assert answer.text == "This is a fake answer."
+    assert answer.citations
+    assert "GPIO" in answer.citations[0].snippet
+
+
+def test_answer_empty_store_returns_not_found() -> None:
+    store = SQLiteVectorStore(":memory:")
+    rag = RAGPipeline(embedding=FakeEmbedding(), store=store, llm=FakeLLM())
+    answer = asyncio.run(rag.answer("anything"))
+    assert answer.text == "资料中未找到相关内容。"
+    assert answer.citations == []
+
+
+def test_llm_received_context(tmp_path) -> None:
+    rag, llm, _ = _build(tmp_path)
+    asyncio.run(rag.answer("GPIO pins"))
+    user_message = llm.last_messages[-1].content
+    assert "GPIO" in user_message
+    assert "来源:" in user_message

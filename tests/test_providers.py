@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ragkb.config import Settings
+from ragkb.core.errors import ConfigurationError
 from ragkb.providers import build_embedding, build_llm
 from ragkb.providers.base import Message
 from ragkb.providers.embedding import OpenAICompatibleEmbedding
@@ -49,3 +50,17 @@ def test_message_dataclass() -> None:
     message = Message(role="user", content="hello")
     assert message.role == "user"
     assert message.content == "hello"
+
+
+def test_build_llm_missing_key_raises() -> None:
+    settings = Settings(_env_file=None, llm_provider="openai-compatible", llm_api_key="")
+    with pytest.raises(ConfigurationError):
+        build_llm(settings)
+
+
+def test_build_embedding_missing_key_raises() -> None:
+    settings = Settings(
+        _env_file=None, embedding_provider="openai-compatible", embedding_api_key=""
+    )
+    with pytest.raises(ConfigurationError):
+        build_embedding(settings)
