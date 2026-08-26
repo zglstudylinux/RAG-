@@ -3,33 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ragkb 知识库</title>
+<title>ragkb 技术资料知识库</title>
 <style>
-  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6f8; color: #1f2328; }
-  .container { max-width: 860px; margin: 0 auto; padding: 24px; }
-  h1 { font-size: 20px; }
+  :root { --blue:#0969da; --border:#d0d7de; --muted:#57606a; --bg:#f5f6f8; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0; background: var(--bg); color: #1f2328; }
+  .container { max-width: 960px; margin: 0 auto; padding: 20px; }
+  header { display: flex; justify-content: space-between; align-items: center; }
+  h1 { font-size: 20px; margin: 0; }
   h2 { font-size: 15px; margin: 0 0 10px; }
-  .card { background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
-  label { display: block; font-size: 13px; color: #57606a; margin-bottom: 4px; }
-  input[type=text], input[type=password], textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 14px; font-family: inherit; }
-  button { background: #0969da; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+  h3 { font-size: 13px; margin: 14px 0 6px; color: #1f2328; }
+  .card { background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=password], textarea, select {
+    width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff;
+  }
+  button { background: var(--blue); color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap; }
   button:disabled { background: #a0b8d8; cursor: default; }
-  button.ghost { background: #fff; color: #0969da; border: 1px solid #0969da; }
+  button.ghost { background: #fff; color: var(--blue); border: 1px solid var(--blue); }
+  button.danger { background: #cf222e; }
   .row { display: flex; gap: 8px; align-items: center; }
+  .grow { flex: 1; }
   .msg { border-radius: 8px; padding: 10px 12px; margin: 8px 0; max-width: 82%; white-space: pre-wrap; font-size: 14px; }
-  .q { background: #0969da; color: #fff; margin-left: auto; }
+  .q { background: var(--blue); color: #fff; margin-left: auto; }
   .a { background: #eef2f6; }
-  .cite { font-size: 12px; color: #57606a; border-top: 1px solid #e4e7ec; margin-top: 8px; padding-top: 6px; }
-  .doc { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f2f4; font-size: 14px; }
-  .muted { color: #57606a; font-size: 12px; }
+  .cite { font-size: 12px; color: var(--muted); border-top: 1px solid #e4e7ec; margin-top: 8px; padding-top: 6px; }
+  .doc { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f2f4; font-size: 14px; }
+  .doc .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cat-item { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f0f2f4; font-size: 14px; }
+  .cat-item .name { flex: 1; }
+  .cat-item.child { padding-left: 26px; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #eef2f6; color: var(--muted); white-space: nowrap; }
+  .muted { color: var(--muted); font-size: 12px; }
   .hidden { display: none; }
-  #status { min-height: 18px; font-size: 13px; color: #57606a; margin-bottom: 8px; }
+  #status { min-height: 18px; font-size: 13px; color: var(--muted); margin: 8px 0; }
   #chat { max-height: 420px; overflow-y: auto; margin-bottom: 10px; }
+  nav { display: flex; gap: 4px; border-bottom: 1px solid #e4e7ec; margin-bottom: 14px; }
+  nav button.tab { background: none; color: var(--muted); border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 9px 14px; }
+  nav button.tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+  .tabpane { display: block; }
+  .inline { display: flex; gap: 8px; align-items: flex-end; }
+  .inline > div { flex: 1; }
+  .section-note { color: var(--muted); font-size: 12px; margin-top: 6px; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>ragkb 技术资料知识库</h1>
+  <header>
+    <h1>ragkb 技术资料知识库</h1>
+    <div id="header-actions"></div>
+  </header>
   <div id="status" class="muted"></div>
 
   <div id="login-view" class="card">
@@ -42,113 +66,242 @@
   </div>
 
   <div id="app-view" class="hidden">
-    <div class="card">
-      <h2>上传资料（PDF / Word / Markdown）</h2>
-      <div class="row">
-        <input type="file" id="file-input" accept=".pdf,.docx,.md,.markdown">
-        <button id="upload-btn">上传并索引</button>
+    <nav id="tabs">
+      <button class="tab active" data-tab="qa">问答</button>
+      <button class="tab" data-tab="docs">资料管理</button>
+      <button class="tab" data-tab="cats">分类管理</button>
+      <button class="tab" data-tab="users">用户管理</button>
+    </nav>
+
+    <!-- 问答 -->
+    <section id="tab-qa" class="tabpane">
+      <div class="card">
+        <h2>提问</h2>
+        <div class="row" style="margin-bottom:8px">
+          <label style="margin:0">限定分类</label>
+          <select id="ask-category" style="width:auto;min-width:180px"></select>
+        </div>
+        <div id="chat"></div>
+        <div class="row">
+          <textarea id="question" rows="2" placeholder="输入你的问题，例如：如何配置 GPIO 引脚？" class="grow"></textarea>
+          <button id="ask-btn">发送</button>
+        </div>
       </div>
-      <div id="upload-status" class="muted" style="margin-top:8px"></div>
-    </div>
+    </section>
 
-    <div class="card">
-      <h2>已入库资料</h2>
-      <div id="docs-list"><div class="muted">加载中…</div></div>
-    </div>
-
-    <div class="card">
-      <h2>提问</h2>
-      <div id="chat"></div>
-      <div class="row">
-        <textarea id="question" rows="2" placeholder="输入你的问题，例如：如何配置 GPIO 引脚？"></textarea>
-        <button id="ask-btn">发送</button>
+    <!-- 资料管理 -->
+    <section id="tab-docs" class="tabpane hidden">
+      <div class="card">
+        <h2>上传资料（PDF / Word / Markdown / 源码 / ZIP）</h2>
+        <div class="inline">
+          <div>
+            <label>所属分类</label>
+            <select id="upload-category"></select>
+          </div>
+          <div>
+            <label>选择文件（可多选；SDK 请上传 .zip 自动解压）</label>
+            <input type="file" id="file-input" multiple
+                   accept=".pdf,.docx,.md,.markdown,.txt,.c,.h,.cpp,.py,.zip">
+          </div>
+          <button id="upload-btn">上传并索引</button>
+        </div>
+        <div id="upload-status" class="muted" style="margin-top:8px"></div>
       </div>
-    </div>
 
-    <div class="row" style="justify-content: flex-end">
-      <button class="ghost" id="logout-btn">退出登录</button>
-    </div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <h2>已入库资料</h2>
+          <div class="row">
+            <label style="margin:0">按分类筛选</label>
+            <select id="docs-filter" style="width:auto;min-width:160px"></select>
+          </div>
+        </div>
+        <div id="docs-list"><div class="muted">加载中…</div></div>
+      </div>
+    </section>
+
+    <!-- 分类管理 -->
+    <section id="tab-cats" class="tabpane hidden">
+      <div class="card">
+        <h2>新建分类</h2>
+        <div class="inline">
+          <div>
+            <label>分类名（如 AB573X）</label>
+            <input type="text" id="cat-name" placeholder="AB573X">
+          </div>
+          <div>
+            <label>所属业务域（可选）</label>
+            <select id="cat-parent"></select>
+          </div>
+          <div>
+            <label>说明（可选）</label>
+            <input type="text" id="cat-desc" placeholder="AB573X 芯片">
+          </div>
+          <button id="cat-create-btn">新建</button>
+        </div>
+        <div class="section-note">业务域是顶层的分组（如 芯片SDK / 嵌入式-ESP32）；分类是叶子（如某颗芯片、某个项目）。</div>
+      </div>
+      <div class="card">
+        <h2>已有分类</h2>
+        <div id="cats-list"><div class="muted">加载中…</div></div>
+      </div>
+    </section>
+
+    <!-- 用户管理 -->
+    <section id="tab-users" class="tabpane hidden">
+      <div class="card">
+        <h2>新建用户</h2>
+        <div class="inline">
+          <div><label>用户名</label><input type="text" id="u-name"></div>
+          <div><label>密码</label><input type="password" id="u-pass"></div>
+          <div>
+            <label>角色</label>
+            <select id="u-role"><option value="admin">admin</option><option value="support">support</option><option value="customer">customer</option></select>
+          </div>
+          <button id="u-create-btn">新建</button>
+        </div>
+        <div class="section-note">customer 角色需填写可见的客户（customers）/ 型号（models），逗号分隔。</div>
+        <div class="inline" style="margin-top:8px">
+          <div><label>可见客户（逗号分隔，可选）</label><input type="text" id="u-customers" placeholder="acme,globex"></div>
+          <div><label>可见型号（逗号分隔，可选）</label><input type="text" id="u-models" placeholder="AB5766C"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>用户列表</h2>
+        <div id="users-list"><div class="muted">加载中…</div></div>
+      </div>
+    </section>
   </div>
 </div>
 
 <script>
 const getToken = () => localStorage.getItem("ragkb_token");
 const authHeaders = () => ({ "Authorization": "Bearer " + getToken(), "Content-Type": "application/json" });
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const cleanName = (src) => String(src).split(/[\\/]/).pop();
+let currentUser = null;
 
 function status(msg) { document.getElementById("status").textContent = msg || ""; }
+
+async function api(method, url, body) {
+  const opts = { method, headers: authHeaders() };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({ detail: res.statusText }));
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+
 function showView(name) {
   document.getElementById("login-view").classList.toggle("hidden", name !== "login");
   document.getElementById("app-view").classList.toggle("hidden", name !== "app");
 }
-function logout() { localStorage.removeItem("ragkb_token"); showView("login"); status(""); }
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function logout() {
+  localStorage.removeItem("ragkb_token");
+  currentUser = null;
+  showView("login");
+  renderHeader();
 }
 
-async function login() {
-  const username = document.getElementById("username").value.trim();
-  const password = document.getElementById("password").value;
-  const res = await fetch("/auth/login", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password })
-  });
-  if (!res.ok) { status("登录失败：用户名或密码错误"); return; }
-  const data = await res.json();
-  localStorage.setItem("ragkb_token", data.token);
-  showView("app");
-  status("已登录：" + data.username + "（" + data.role + "）");
-  loadDocs();
-}
-
-async function upload() {
-  const input = document.getElementById("file-input");
-  if (!input.files.length) return;
-  const form = new FormData();
-  form.append("file", input.files[0]);
-  document.getElementById("upload-btn").disabled = true;
-  try {
-    const res = await fetch("/ingest", { method: "POST", headers: { "Authorization": "Bearer " + getToken() }, body: form });
-    if (!res.ok) { status("上传失败"); return; }
-    const data = await res.json();
-    document.getElementById("upload-status").textContent = "已索引 " + data.chunks + " 个片段（" + data.filename + "）";
-    input.value = "";
-    loadDocs();
-  } finally {
-    document.getElementById("upload-btn").disabled = false;
+function renderHeader() {
+  const el = document.getElementById("header-actions");
+  if (currentUser) {
+    el.innerHTML = `<span class="muted">${esc(currentUser.username)} · ${esc(currentUser.role)}</span>
+      <button class="ghost" onclick="logout()">退出</button>`;
+  } else {
+    el.innerHTML = "";
   }
 }
 
-async function loadDocs() {
-  const res = await fetch("/documents", { headers: { "Authorization": "Bearer " + getToken() } });
-  const list = document.getElementById("docs-list");
-  if (!res.ok) { list.innerHTML = '<div class="muted">加载失败</div>'; return; }
-  const data = await res.json();
-  if (!data.documents.length) { list.innerHTML = '<div class="muted">暂无资料</div>'; return; }
-  list.innerHTML = data.documents.map(d =>
-    '<div class="doc"><span>' + escapeHtml(d.source) + ' <span class="muted">(' + d.chunks + ' 片段)</span></span>' +
-    '<button class="ghost" data-source="' + escapeHtml(d.source) + '">删除</button></div>'
-  ).join("");
+/* ---------- 登录 ---------- */
+async function login() {
+  try {
+    const res = await fetch("/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "登录失败");
+    localStorage.setItem("ragkb_token", data.token);
+    currentUser = {
+      username: data.username || document.getElementById("username").value,
+      role: data.role || "admin",
+    };
+    showView("app");
+    renderHeader();
+    await initApp();
+  } catch (e) { status("登录失败：" + e.message); }
 }
 
-async function removeDoc(source) {
-  const res = await fetch("/documents/" + encodeURIComponent(source), {
-    method: "DELETE", headers: { "Authorization": "Bearer " + getToken() }
-  });
-  if (res.ok) loadDocs();
+/* ---------- 视图切换 ---------- */
+function switchTab(name) {
+  document.querySelectorAll("nav button.tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  ["qa","docs","cats","users"].forEach(t =>
+    document.getElementById("tab-" + t).classList.toggle("hidden", t !== name));
+  if (name === "docs") refreshDocs();
+  if (name === "cats") refreshCategories();
+  if (name === "users") refreshUsers();
+  if (name === "qa") refreshAskCategory();
 }
 
-function addMsg(cls, text, cites) {
+/* ---------- 分类下拉 ---------- */
+let categoriesCache = [];
+
+async function refreshCategories() {
+  const data = await api("GET", "/categories");
+  categoriesCache = data.categories || [];
+  fillCategorySelect("upload-category", true);
+  fillCategorySelect("docs-filter", false);
+  fillCategorySelect("ask-category", false);
+  fillParentSelect();
+  renderCategoriesList();
+}
+
+function categoryLabel(cat) {
+  return cat.parent ? `${cat.parent} / ${cat.name}` : cat.name;
+}
+
+function fillCategorySelect(id, allowEmpty) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const prev = sel.value;
+  let html = allowEmpty ? `<option value="">（未分类）</option>` : `<option value="">（全部）</option>`;
+  for (const cat of categoriesCache) {
+    html += `<option value="${esc(cat.name)}">${esc(categoryLabel(cat))}</option>`;
+  }
+  sel.innerHTML = html;
+  if (prev) sel.value = prev;
+}
+
+function fillParentSelect() {
+  const sel = document.getElementById("cat-parent");
+  let html = `<option value="">（无，作为业务域）</option>`;
+  for (const cat of categoriesCache.filter(c => !c.parent)) {
+    html += `<option value="${esc(cat.name)}">${esc(cat.name)}</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+function refreshAskCategory() { fillCategorySelect("ask-category", false); }
+
+/* ---------- 问答 ---------- */
+function addMsg(kind, text, citations) {
   const chat = document.getElementById("chat");
   const div = document.createElement("div");
-  div.className = "msg " + cls;
+  div.className = "msg " + kind;
   div.textContent = text;
-  if (cites && cites.length) {
-    const c = document.createElement("div");
-    c.className = "cite";
-    c.innerHTML = cites.map((x, i) => "[" + (i + 1) + "] " + escapeHtml(x.source) + (x.page ? " p." + x.page : "")).join("<br>");
-    div.appendChild(c);
-  }
   chat.appendChild(div);
+  if (citations && citations.length) {
+    const cite = document.createElement("div");
+    cite.className = "cite";
+    cite.innerHTML = "引用来源：<br>" + citations.map((c, i) =>
+      `[${i + 1}] ${esc(cleanName(c.source))}${c.page ? " p." + c.page : ""}`).join("<br>");
+    chat.appendChild(cite);
+  }
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -157,27 +310,218 @@ async function ask() {
   if (!q) return;
   addMsg("q", q);
   document.getElementById("question").value = "";
+  const category = document.getElementById("ask-category").value || null;
   try {
-    const res = await fetch("/ask", { method: "POST", headers: authHeaders(), body: JSON.stringify({ question: q }) });
-    if (!res.ok) { addMsg("a", "请求失败"); return; }
-    const data = await res.json();
+    const data = await api("POST", "/ask", { question: q, category });
     addMsg("a", data.answer, data.citations);
-  } catch (e) { addMsg("a", "请求出错：" + e.message); }
+  } catch (e) { addMsg("a", "请求失败：" + e.message); }
+}
+
+/* ---------- 资料上传 ---------- */
+async function upload() {
+  const files = document.getElementById("file-input").files;
+  const category = document.getElementById("upload-category").value;
+  if (!files.length) { status("请先选择文件"); return; }
+  const btn = document.getElementById("upload-btn");
+  const out = document.getElementById("upload-status");
+  btn.disabled = true;
+  out.textContent = "";
+  let done = 0, chunks = 0, skipped = [];
+  try {
+    for (const file of files) {
+      const form = new FormData();
+      form.append("file", file);
+      if (category) form.append("category", category);
+      try {
+        const res = await fetch("/ingest", { method: "POST", headers: { "Authorization": "Bearer " + getToken() }, body: form });
+        const data = await res.json().catch(() => ({ detail: res.statusText }));
+        if (!res.ok) throw new Error(data.detail || res.statusText);
+        chunks += data.chunks || 0;
+        if (data.files != null) out.textContent += `${file.name}：解压并索引 ${data.files} 个文件、${data.chunks} 块\n`;
+        else out.textContent += `${file.name}：${data.chunks} 块\n`;
+      } catch (e) { skipped.push(`${file.name}（${e.message}）`); }
+      done++;
+    }
+    out.textContent += `完成 ${done}/${files.length} 份，共 ${chunks} 块`;
+    if (skipped.length) out.textContent += `；跳过/失败：${skipped.join("、")}`;
+    document.getElementById("file-input").value = "";
+    refreshDocs();
+  } finally { btn.disabled = false; }
+}
+
+/* ---------- 资料列表 ---------- */
+async function refreshDocs() {
+  const list = document.getElementById("docs-list");
+  const category = document.getElementById("docs-filter").value;
+  try {
+    const data = await api("GET", "/documents" + (category ? "?category=" + encodeURIComponent(category) : ""));
+    const items = data.documents || [];
+    list.innerHTML = "";
+    if (!items.length) { list.innerHTML = '<div class="muted">（无资料）</div>'; return; }
+    const byCat = new Map();
+    for (const d of items) {
+      const cat = d.category || "";
+      if (!byCat.has(cat)) byCat.set(cat, []);
+      byCat.get(cat).push(d);
+    }
+    const cats = [...byCat.keys()].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+    for (const cat of cats) {
+      const group = byCat.get(cat);
+      const header = document.createElement("h3");
+      header.textContent = `${cat || "（未分类）"}（${group.length} 份）`;
+      list.appendChild(header);
+      for (const d of group) {
+        const row = document.createElement("div");
+        row.className = "doc";
+        row.innerHTML = `
+          <span class="name" title="${esc(d.source)}">${esc(cleanName(d.source))}</span>
+          <span class="badge">${d.chunks} 块</span>
+          <button class="ghost" data-source="${esc(d.source)}">删除</button>`;
+        list.appendChild(row);
+      }
+    }
+  } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }
+}
+
+async function removeDoc(source) {
+  if (!confirm(`确定删除这份资料？\n${source}`)) return;
+  try {
+    await api("DELETE", "/documents/" + encodeURIComponent(source));
+    status("已删除：" + cleanName(source));
+    refreshDocs();
+  } catch (e) { status("删除失败：" + e.message); }
+}
+
+/* ---------- 分类管理 ---------- */
+function renderCategoriesList() {
+  const list = document.getElementById("cats-list");
+  list.innerHTML = "";
+  if (!categoriesCache.length) { list.innerHTML = '<div class="muted">（还没有分类，先在上面新建）</div>'; return; }
+  const parents = categoriesCache.filter(c => !c.parent);
+  const children = categoriesCache.filter(c => c.parent);
+  const unparented = [...parents, ...children.filter(c => !parents.some(p => p.name === c.parent))];
+  for (const cat of unparented) {
+    renderCategoryRow(list, cat, !!cat.parent);
+    for (const child of children.filter(c => c.parent === cat.name)) {
+      renderCategoryRow(list, child, true);
+    }
+  }
+}
+
+function renderCategoryRow(list, cat, isChild) {
+  const row = document.createElement("div");
+  row.className = "cat-item" + (isChild ? " child" : "");
+  const chunks = cat.chunks != null ? ` · ${cat.chunks} 块` : "";
+  row.innerHTML = `
+    <span class="name">${esc(categoryLabel(cat))}</span>
+    <span class="badge">${esc(cat.parent ? "分类" : "业务域")}${chunks}</span>
+    <button class="ghost" data-rename="${esc(cat.name)}">重命名</button>
+    <button class="danger" data-delete="${esc(cat.name)}">删除</button>`;
+  list.appendChild(row);
+}
+
+async function createCategory() {
+  const name = document.getElementById("cat-name").value.trim();
+  const parent = document.getElementById("cat-parent").value || null;
+  const description = document.getElementById("cat-desc").value.trim();
+  if (!name) { status("请填写分类名"); return; }
+  try {
+    await api("POST", "/categories", { name, parent, description });
+    document.getElementById("cat-name").value = "";
+    document.getElementById("cat-desc").value = "";
+    refreshCategories();
+  } catch (e) { status("新建失败：" + e.message); }
+}
+
+async function renameCategory(name) {
+  const newName = prompt("重命名分类（会同步更新其下资料的标签）：", name);
+  if (!newName || newName === name) return;
+  try { await api("PATCH", "/categories/" + encodeURIComponent(name), { new_name: newName }); refreshCategories(); }
+  catch (e) { status("重命名失败：" + e.message); }
+}
+
+async function deleteCategory(name) {
+  const cat = categoriesCache.find(c => c.name === name);
+  const chunks = cat && cat.chunks ? cat.chunks : 0;
+  if (!confirm(`确定删除分类「${name}」？\n其下 ${chunks} 块资料将被一并删除。`)) return;
+  try { await api("DELETE", "/categories/" + encodeURIComponent(name)); refreshCategories(); refreshDocs(); }
+  catch (e) { status("删除失败：" + e.message); }
+}
+
+/* ---------- 用户管理 ---------- */
+async function refreshUsers() {
+  const list = document.getElementById("users-list");
+  try {
+    const data = await api("GET", "/users");
+    const users = data.users || [];
+    list.innerHTML = "";
+    for (const u of users) {
+      const scope = (u.customers && u.customers.length) ? `客户:${u.customers.join(",")}` : "";
+      const models = (u.models && u.models.length) ? `型号:${u.models.join(",")}` : "";
+      const div = document.createElement("div");
+      div.className = "cat-item";
+      div.innerHTML = `<span class="name">${esc(u.username)}</span><span class="badge">${esc(u.role)}</span><span class="muted">${esc([scope, models].filter(Boolean).join(" · "))}</span>`;
+      list.appendChild(div);
+    }
+  } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }
+}
+
+async function createUser() {
+  const username = document.getElementById("u-name").value.trim();
+  const password = document.getElementById("u-pass").value;
+  const role = document.getElementById("u-role").value;
+  if (!username || !password) { status("请填写用户名和密码"); return; }
+  const customers = document.getElementById("u-customers").value.split(",").map(s => s.trim()).filter(Boolean);
+  const models = document.getElementById("u-models").value.split(",").map(s => s.trim()).filter(Boolean);
+  try {
+    await api("POST", "/users", { username, password, role, customers, models });
+    document.getElementById("u-name").value = "";
+    document.getElementById("u-pass").value = "";
+    refreshUsers();
+  } catch (e) { status("新建失败：" + e.message); }
+}
+
+/* ---------- 初始化 ---------- */
+async function initApp() {
+  await refreshCategories();
+  await refreshDocs();
+  refreshAskCategory();
 }
 
 document.getElementById("login-btn").onclick = login;
-document.getElementById("logout-btn").onclick = logout;
-document.getElementById("upload-btn").onclick = upload;
 document.getElementById("ask-btn").onclick = ask;
+document.getElementById("upload-btn").onclick = upload;
+document.getElementById("cat-create-btn").onclick = createCategory;
+document.getElementById("u-create-btn").onclick = createUser;
 document.getElementById("question").addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+document.getElementById("docs-filter").addEventListener("change", refreshDocs);
+document.getElementById("tabs").addEventListener("click", e => {
+  const btn = e.target.closest("button.tab");
+  if (btn) switchTab(btn.dataset.tab);
 });
 document.getElementById("docs-list").addEventListener("click", e => {
   const btn = e.target.closest("button[data-source]");
   if (btn) removeDoc(btn.getAttribute("data-source"));
 });
+document.getElementById("cats-list").addEventListener("click", e => {
+  const rename = e.target.closest("button[data-rename]");
+  const del = e.target.closest("button[data-delete]");
+  if (rename) renameCategory(rename.getAttribute("data-rename"));
+  if (del) deleteCategory(del.getAttribute("data-delete"));
+});
 
-if (getToken()) { showView("app"); loadDocs(); } else { showView("login"); }
+if (getToken()) {
+  showView("app");
+  api("GET", "/auth/me").then(user => {
+    currentUser = user;
+    renderHeader();
+    return initApp();
+  }).catch(() => { localStorage.removeItem("ragkb_token"); showView("login"); });
+} else {
+  showView("login");
+}
 </script>
 </body>
 </html>

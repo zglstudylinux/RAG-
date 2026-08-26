@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
+
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
@@ -53,3 +56,26 @@ def test_login_with_wrong_password(monkeypatch, tmp_path) -> None:
 def test_documents_require_auth(monkeypatch, tmp_path) -> None:
     client = _client(monkeypatch, tmp_path)
     assert client.get("/documents").status_code == 401
+
+
+def test_ingest_zip_extracts_and_indexes(monkeypatch, tmp_path) -> None:
+    client = _client(monkeypatch, tmp_path)
+    headers = _login(client)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("src/main.c", "int main(void) { return 0; }\n")
+        archive.writestr("docs/readme.md", "# SDK\n\nThis is the SDK.\n")
+
+    response = client.post(
+        "/ingest",
+        files={"file": ("sdk.zip", buffer.getvalue(), "application/zip")},
+        data={"category": "AB5766C"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["files"] == 2
+    assert body["chunks"] >= 1
+
+    sources = [d["source"] for d in client.get("/documents", headers=headers).json()["documents"]]
+    assert any(source.startswith("sdk.zip/") for source in sources)
