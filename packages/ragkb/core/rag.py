@@ -36,8 +36,14 @@ class RAGPipeline:
         self._reranker = reranker or NoopReranker()
         self._llm = llm
 
-    async def answer(self, question: str, k: int = 4, scope: Scope | None = None) -> Answer:
-        results = await self._retriever.retrieve(question, k=k, scope=scope)
+    async def answer(
+        self,
+        question: str,
+        k: int = 4,
+        scope: Scope | None = None,
+        category: str | None = None,
+    ) -> Answer:
+        results = await self._retriever.retrieve(question, k=k, scope=scope, category=category)
         results = await self._reranker.rerank(question, results)
         if not results:
             return Answer(text="资料中未找到相关内容。", citations=[])

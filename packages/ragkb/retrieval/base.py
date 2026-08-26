@@ -12,5 +12,9 @@ class Retriever(Protocol):
     """Anything that can retrieve chunks for a query, optionally scoped."""
 
     async def retrieve(
-        self, query: str, k: int = 4, scope: Scope | None = None
+        self,
+        query: str,
+        k: int = 4,
+        scope: Scope | None = None,
+        category: str | None = None,
     ) -> list[SearchResult]: ...

@@ -16,9 +16,13 @@ class VectorRetriever:
         self._store = store
 
     async def retrieve(
-        self, query: str, k: int = 4, scope: Scope | None = None
+        self,
+        query: str,
+        k: int = 4,
+        scope: Scope | None = None,
+        category: str | None = None,
     ) -> list[SearchResult]:
         if self._store.count() == 0:
             return []
         query_embedding = await self._embedding.embed_query(query)
-        return self._store.search(query_embedding, k=k, scope=scope)
+        return self._store.search(query_embedding, k=k, scope=scope, category=category)

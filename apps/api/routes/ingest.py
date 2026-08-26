@@ -19,9 +19,10 @@ async def ingest(
     file: UploadFile = File(...),
     customer: str | None = Form(default=None),
     model: str | None = Form(default=None),
+    category: str | None = Form(default=None),
     user: dict = Depends(require_internal),
 ) -> dict[str, object]:
-    """Upload a document, tag it with a customer/model, and index its chunks."""
+    """Upload a document, tag it with customer/model/category, and index its chunks."""
     ensure_services(request.app)
     pipeline: IngestionPipeline = request.app.state.ingestion_pipeline
     filename = file.filename or "upload.txt"
@@ -31,8 +32,19 @@ async def ingest(
         tmp_path = tmp.name
     try:
         count = await pipeline.ingest_path(
-            tmp_path, source=filename, customer=customer, model=model
+            tmp_path,
+            source=filename,
+            customer=customer,
+            model=model,
+            category=category,
         )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
-    return {"status": "ok", "filename": filename, "customer": customer, "chunks": count}
+    return {
+        "status": "ok",
+        "filename": filename,
+        "customer": customer,
+        "model": model,
+        "category": category,
+        "chunks": count,
+    }

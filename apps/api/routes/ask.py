@@ -13,6 +13,7 @@ from ragkb.core.rag import RAGPipeline
 class AskRequest(BaseModel):
     question: str
     top_k: int = 4
+    category: str | None = None
 
 
 router = APIRouter(tags=["ask"])
@@ -28,7 +29,9 @@ async def ask(
     ensure_services(request.app)
     pipeline: RAGPipeline = request.app.state.rag_pipeline
     scope = build_scope(user["role"], user["customers"], user["models"])
-    answer = await pipeline.answer(body.question, k=body.top_k, scope=scope)
+    answer = await pipeline.answer(
+        body.question, k=body.top_k, scope=scope, category=body.category
+    )
     citations = [
         {"source": citation.source, "page": citation.page, "snippet": citation.snippet}
         for citation in answer.citations

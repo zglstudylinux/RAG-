@@ -38,12 +38,13 @@ class IngestionPipeline:
         source: str | None = None,
         customer: str | None = None,
         model: str | None = None,
+        category: str | None = None,
     ) -> int:
         """Ingest a file or directory and return the number of chunks stored.
 
         Image-heavy PDFs (schematics) are routed through the VLM when one is configured;
         source files use a structure-aware code splitter. ``customer``/``model`` tag the
-        chunks for ACL scoping.
+        chunks for ACL scoping; ``category`` tags them for chip/project organization.
         """
         target = Path(path)
         files = self._collect_files(target)
@@ -66,6 +67,8 @@ class IngestionPipeline:
                     document.metadata["customer"] = customer
                 if model is not None:
                     document.metadata["model"] = model
+                if category is not None:
+                    document.metadata["category"] = category
             documents.extend(docs)
         if not documents:
             return 0

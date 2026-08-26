@@ -10,8 +10,12 @@ router = APIRouter(tags=["documents"])
 
 
 @router.get("/documents")
-async def list_documents(request: Request, user: dict = Depends(require_internal)) -> dict:
-    return {"documents": request.app.state.store.list_sources()}
+async def list_documents(
+    request: Request,
+    category: str | None = None,
+    user: dict = Depends(require_internal),
+) -> dict:
+    return {"documents": request.app.state.store.list_sources(category=category)}
 
 
 @router.delete("/documents/{source}")

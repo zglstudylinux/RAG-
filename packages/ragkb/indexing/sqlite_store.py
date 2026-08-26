@@ -32,7 +32,8 @@ class SQLiteVectorStore(VectorStore):
             "CREATE TABLE IF NOT EXISTS chunks ("
             "id TEXT PRIMARY KEY, source TEXT NOT NULL, text TEXT NOT NULL, "
             "metadata TEXT NOT NULL, embedding BLOB NOT NULL, "
-            "customer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '')"
+            "customer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', "
+            "category TEXT NOT NULL DEFAULT '')"
         )
         self._migrate()
         self._conn.commit()
@@ -47,7 +48,7 @@ class SQLiteVectorStore(VectorStore):
                 )
             except sqlite3.OperationalError:
                 pass  # json_extract unavailable; leave existing rows empty.
-        for column in ("customer", "model"):
+        for column in ("customer", "model", "category"):
             if column not in columns:
                 self._conn.execute(
                     f"ALTER TABLE chunks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
@@ -69,19 +70,24 @@ class SQLiteVectorStore(VectorStore):
                     blob,
                     str(metadata.get("customer", "")),
                     str(metadata.get("model", "")),
+                    str(metadata.get("category", "")),
                 )
             )
         with self._lock:
             self._conn.executemany(
                 "INSERT OR REPLACE INTO chunks "
-                "(id, source, text, metadata, embedding, customer, model) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(id, source, text, metadata, embedding, customer, model, category) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
             self._conn.commit()
 
     def search(
-        self, query_embedding: Sequence[float], k: int = 4, scope: Scope | None = None
+        self,
+        query_embedding: Sequence[float],
+        k: int = 4,
+        scope: Scope | None = None,
+        category: str | None = None,
     ) -> list[SearchResult]:
         if k <= 0:
             return []
@@ -95,6 +101,8 @@ class SQLiteVectorStore(VectorStore):
         for row in rows:
             metadata = json.loads(row[2])
             if scope is not None and not scope.allows(metadata):
+                continue
+            if category is not None and str(metadata.get("category", "")) != category:
                 continue
             entries.append((row[0], row[1], metadata, row[3]))
         if not entries:
@@ -120,14 +128,26 @@ class SQLiteVectorStore(VectorStore):
             )
         return results
 
-    def list_sources(self) -> list[dict[str, object]]:
+    def list_sources(self, category: str | None = None) -> list[dict[str, object]]:
+        query = (
+            "SELECT source, customer, model, category, COUNT(*) FROM chunks "
+            + ("WHERE category = ? " if category is not None else "")
+            + "GROUP BY source, customer, model, category ORDER BY source"
+        )
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT source, customer, model, COUNT(*) FROM chunks "
-                "GROUP BY source, customer, model ORDER BY source"
+            rows = (
+                self._conn.execute(query, (category,))
+                if category is not None
+                else self._conn.execute(query)
             ).fetchall()
         return [
-            {"source": row[0], "customer": row[1], "model": row[2], "chunks": row[3]}
+            {
+                "source": row[0],
+                "customer": row[1],
+                "model": row[2],
+                "category": row[3],
+                "chunks": row[4],
+            }
             for row in rows
         ]
 

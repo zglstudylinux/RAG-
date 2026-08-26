@@ -36,21 +36,31 @@ class HybridRetriever:
             self._fingerprint = count
 
     async def retrieve(
-        self, query: str, k: int = 4, scope: Scope | None = None
+        self,
+        query: str,
+        k: int = 4,
+        scope: Scope | None = None,
+        category: str | None = None,
     ) -> list[SearchResult]:
         if self._store.count() == 0:
             return []
         self._ensure_index()
         query_embedding = await self._embedding.embed_query(query)
-        vector_results = self._store.search(query_embedding, k=self._candidate_k, scope=scope)
+        vector_results = self._store.search(
+            query_embedding, k=self._candidate_k, scope=scope, category=category
+        )
 
         bm25_top = self._candidate_k if scope is None else len(self._chunks)
         bm25_results = self._bm25.search(tokenize(query), top_k=bm25_top)
-        if scope is not None:
-            bm25_results = [
-                item for item in bm25_results if scope.allows(self._chunks[item[0]].metadata)
-            ]
-        bm25_results = bm25_results[: self._candidate_k]
+        filtered_bm25: list[tuple[int, float]] = []
+        for index, score in bm25_results:
+            metadata = self._chunks[index].metadata
+            if scope is not None and not scope.allows(metadata):
+                continue
+            if category is not None and str(metadata.get("category", "")) != category:
+                continue
+            filtered_bm25.append((index, score))
+        bm25_results = filtered_bm25[: self._candidate_k]
 
         vector_rank = {result.chunk.id: rank for rank, result in enumerate(vector_results)}
         bm25_rank = {
