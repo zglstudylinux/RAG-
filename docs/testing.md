@@ -221,6 +221,37 @@ docker compose up --build
 > 若 8000 端口已被第 2 节的本地 uvicorn 占用，先 `Ctrl+C` 停掉本地服务再跑。
 > 默认也是 fake provider，离线可跑通；数据存在 `ragkb-data` 卷里。
 
+### 6.1 在 VMware Ubuntu 24.04 里测 Docker（推荐）
+
+Linux 原生跑 Docker，**不用 WSL / 管理员 / 重启 Windows**，比在 Windows 上装 Docker Desktop 省事得多。
+
+```bash
+# 1. 安装 Docker Engine + compose 插件（官方一键脚本）
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+newgrp docker                 # 立即生效，或重新登录
+
+# 2. 验证
+docker --version
+docker compose version
+
+# 3. 拉项目代码（没有 git 先 sudo apt install -y git）
+cd ~
+git clone https://github.com/zglstudylinux/RAG-.git
+cd RAG-
+
+# 4. 构建并启动（首次构建需联网下载 python:3.11-slim 与 pip 依赖，几分钟）
+docker compose up --build
+```
+
+- **从 Windows 访问**：在 VM 里 `ip addr` 查 IP（eth0/ens33 的 inet，形如 192.168.x.x），
+  然后 Windows 浏览器打开 `http://<VM-IP>:8000/`（账号 admin / admin123）。
+- **网络要求**：首次构建要联网拉镜像和 pip 包；VMware NAT 通常可直接上外网。若 VM 不能直连
+  外网（需走 Windows 上的代理 127.0.0.1:7897），则把代理指向宿主机 IP 并允许局域网连接，
+  再 `export HTTP_PROXY=http://<宿主机IP>:7897`、`export HTTPS_PROXY=...`。
+- ✅ 已本地验证：Dockerfile 的启动命令（裸 `uvicorn apps.api.main:app`）可正常启动，`/health`
+  返回 `version 1.0.0`。
+
 ---
 
 ## 7. 填入真实 API key（真实效果测试）
