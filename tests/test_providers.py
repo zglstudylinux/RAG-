@@ -12,7 +12,11 @@ from ragkb.providers.llm import OpenAICompatibleLLM
 
 
 def test_build_llm_returns_openai_compatible() -> None:
-    settings = Settings(_env_file=None, llm_provider="openai-compatible")
+    settings = Settings(
+        _env_file=None,
+        llm_provider="openai-compatible",
+        llm_api_key="test-key",
+    )
     provider = build_llm(settings)
     assert isinstance(provider, OpenAICompatibleLLM)
     assert provider.model == settings.llm_model
@@ -25,7 +29,11 @@ def test_build_llm_unknown_provider_raises() -> None:
 
 
 def test_build_embedding_returns_openai_compatible() -> None:
-    settings = Settings(_env_file=None, embedding_provider="openai-compatible")
+    settings = Settings(
+        _env_file=None,
+        embedding_provider="openai-compatible",
+        embedding_api_key="test-key",
+    )
     provider = build_embedding(settings)
     assert isinstance(provider, OpenAICompatibleEmbedding)
     assert provider.model == settings.embedding_model
