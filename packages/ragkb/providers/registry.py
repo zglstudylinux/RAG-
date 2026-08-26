@@ -39,6 +39,7 @@ def build_embedding(settings: Settings) -> EmbeddingProvider:
             base_url=settings.embedding_base_url,
             api_key=settings.embedding_api_key,
             model=settings.embedding_model,
+            batch_size=settings.embedding_batch_size,
         )
     if settings.embedding_provider == "local":
         return LocalEmbedding(settings.embedding_model)

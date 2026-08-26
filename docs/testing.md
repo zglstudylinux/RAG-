@@ -325,3 +325,6 @@ cd D:\Code\AI\RAG
 | 2026-08-26 | 7 | 切换 embedding（fake 256 维 → BGE 768 维）后检索维度不匹配 | 已解决：必须重建向量库（备份旧库 → 删 `data/ragkb.sqlite` → 重新 `ingest`） |
 | 2026-08-26 | 摄入5766 | 多页 PDF 丢数据：18 页 datasheet 只入库 5 块（1004→977，其余被覆盖） | 已解决：分块 ID 未含页码，各页 `chunk_index` 冲突；`splitter.py`/`code_splitter.py` 的 ID 已纳入 `page` |
 | 2026-08-26 | 摄入5766 | 删库重摄后混入历史数据（`SCH_Schematic_new.pdf`，T113 开发板原理图） | 已解决：残留的 `uvicorn --reload` 进程占着旧 DB；`Stop-Process` 杀掉残留 python 进程后重摄 |
+| 2026-08-26 | embedding选型 | 通义千问 embedding 测试：`qwen3.7-text-embedding` 可用（1024 维，跨语言好）；`tongyi-embedding-vision-flash`/`qwen3-vl-embedding` 报 404 | 已确认：后两者是视觉 embedding，不走 OpenAI 兼容接口；文本 RAG 用 `qwen3.7-text-embedding` |
+| 2026-08-26 | embedding选型 | qwen3.7 批量上限 20 条/请求（batch=50 报 `batch size should not be larger than 20`），摄入 1000+ 块一次发会失败 | 已解决：`OpenAICompatibleEmbedding` 加分批（`RAGKB_EMBEDDING_BATCH_SIZE=20`），新增单测 |
+| 2026-08-26 | 检索 | 加中文《SDK开发指南》后，`top_k=4` 时「SAR ADC 触摸按键」问被挤出去（英文 datasheet 排不上） | 已解决：`RAGKB_RETRIEVAL_TOP_K=6` 后恢复正确；18 个测试案例全部通过 |

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     embedding_base_url: str = "https://api.siliconflow.cn/v1"
     embedding_api_key: str = ""
     embedding_model: str = "BAAI/bge-m3"
+    embedding_batch_size: int = 20  # max inputs per /embeddings request (DashScope qwen3.7 = 20)
 
     # Vision-language model (for schematic / image-heavy PDFs)
     vlm_provider: str = "none"

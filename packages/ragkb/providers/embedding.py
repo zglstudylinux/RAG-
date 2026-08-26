@@ -19,9 +19,11 @@ class OpenAICompatibleEmbedding(EmbeddingProvider):
         api_key: str,
         model: str,
         timeout: float = 60.0,
+        batch_size: int = 20,
         client: AsyncOpenAI | None = None,
     ) -> None:
         self._model = model
+        self._batch_size = max(1, batch_size)
         self._client = client or AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=timeout)
 
     @property
@@ -31,6 +33,12 @@ class OpenAICompatibleEmbedding(EmbeddingProvider):
     async def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
-        response = await self._client.embeddings.create(model=self._model, input=list(texts))
-        data = sorted(response.data, key=lambda item: item.index)
-        return [item.embedding for item in data]
+        texts = list(texts)
+        embeddings: list[list[float]] = []
+        # Batch requests: some providers cap inputs per request (e.g. DashScope qwen3.7 = 20).
+        for start in range(0, len(texts), self._batch_size):
+            batch = texts[start : start + self._batch_size]
+            response = await self._client.embeddings.create(model=self._model, input=batch)
+            data = sorted(response.data, key=lambda item: item.index)
+            embeddings.extend(item.embedding for item in data)
+        return embeddings
