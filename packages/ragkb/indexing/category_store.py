@@ -103,6 +103,20 @@ class CategoryStore:
             self._conn.commit()
         return {"deleted": True, "chunks": chunk_count}
 
+    def assign(self, source_contains: str, category: str) -> int:
+        """Tag uncategorized chunks whose source path contains a substring.
+
+        Used for one-time backfills (e.g. assign every existing 5766 chunk to AB5766C).
+        Returns the number of chunks updated.
+        """
+        with self._lock:
+            cursor = self._conn.execute(
+                "UPDATE chunks SET category = ? WHERE category = '' AND source LIKE ?",
+                (category, f"%{source_contains}%"),
+            )
+            self._conn.commit()
+            return cursor.rowcount
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()

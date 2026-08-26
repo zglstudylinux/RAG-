@@ -80,6 +80,21 @@ def test_delete_missing_category(tmp_path) -> None:
         store.close()
 
 
+def test_assign_backfills_uncategorized_chunks(tmp_path) -> None:
+    path = str(tmp_path / "store.sqlite")
+    _seed_chunks(path, ["", "AB5766C"])
+    store = CategoryStore(path)
+    try:
+        updated = store.assign("s0", "BT897X")
+        # only the chunk whose source "s0.md" contains "s0" and is uncategorized moves
+        assert updated == 1
+        assert _sources(path, "BT897X")[0]["source"] == "s0.md"
+        # already-tagged chunks are left alone
+        assert _sources(path, "AB5766C")[0]["source"] == "s1.md"
+    finally:
+        store.close()
+
+
 def test_category_column_migration(tmp_path) -> None:
     """An existing store without the category column gains it on open."""
     path = str(tmp_path / "old.sqlite")

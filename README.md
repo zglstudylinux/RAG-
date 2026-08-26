@@ -17,8 +17,8 @@ PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 ```
 ragkb/
 ├─ apps/
-│  ├─ api/            # FastAPI 后端（/health、/auth、/ingest、/ask、/documents、/users、/qa）
-│  └─ cli/            # 命令行（ingest / ask）
+│  ├─ api/            # FastAPI 后端（/health、/auth、/ingest、/ask、/documents、/categories、/users、/qa）
+│  └─ cli/            # 命令行（ingest / ask / list / delete / eval / backup）
 ├─ packages/ragkb/    # 可复用核心包
 │  ├─ config.py       # 配置（pydantic-settings，RAGKB_ 前缀）
 │  ├─ auth.py         # 密码散列 + JWT 令牌
@@ -26,9 +26,9 @@ ragkb/
 │  ├─ core/           # 领域模型、摄入/问答管线、客户-型号 ACL
 │  ├─ loaders/        # PDF / Word / Markdown / 源码 / 原理图(VLM) 解析器
 │  ├─ chunking/       # 分块策略（文本 + 源码结构感知）
-│  ├─ indexing/       # SQLite 向量库 + 用户存储 + Q&A 记录（可插拔 VectorStore 接口）
+│  ├─ indexing/       # SQLite 向量库 + 用户存储 + 分类存储 + Q&A 记录（可插拔 VectorStore 接口）
 │  ├─ retrieval/      # 向量 + BM25 混合检索（RRF）、可插拔 rerank
-│  ├─ web/            # 内置单页门户（登录 / 上传 / 问答）
+│  ├─ web/            # 内置单页门户（登录 / 上传 / 分类管理 / 问答）
 │  └─ eval/           # 检索评估（Hit@k / MRR）
 ├─ tests/
 ├─ .github/workflows/ci.yml
@@ -113,6 +113,22 @@ curl -F "file=@sdk.zip" -F "customer=acme" -F "model=x1" \
   -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/ingest
 ```
 
+## 多芯片分类与业务扩展
+
+资料除 `customer`/`model` 权限标签外，还有 **`category`（分类）** 标签，用于按「芯片型号 / 项目」
+整理资料。分类支持两级：**业务域**（如 `芯片SDK`、`嵌入式-ESP32`、`嵌入式-Linux`、`嵌入式-ROS`）→
+**分类**（如某颗芯片 `AB5766C`、`AB573X`、`BT897X`，或某个项目）。加一颗新芯片 = 在网页「分类管理」
+里新建一个分类；加一个新业务 = 新建一个业务域，**无需改代码**，核心包可直接复用。
+
+网页门户（http://127.0.0.1:8000/）提供完整管理：上传（多文件 / SDK 的 .zip 自动解压）、按分类分组的
+资料列表（可删除）、分类管理（新建/重命名/删除）、按分类筛选问答。
+
+```bash
+# 一次性预置默认分类（芯片SDK → AB5766C/AB573X/BT897X/BT895X），
+# 并把现有 5766 资料回填到 AB5766C（幂等，可重复执行）
+python scripts/seed_categories.py
+```
+
 ## Docker 部署
 
 ```bash
@@ -137,6 +153,10 @@ docker compose up --build
 | M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL ✅ |
 | M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 ✅ |
 | M7 | 工程化：docker-compose、日志、备份、发布 v1 ✅ |
+| M8 | 多芯片分类后端：分类存储、chunk 分类标签、/categories API、分类检索过滤 ✅ |
+| M9 | 网页门户升级：多文件/zip 上传、分类下拉、分组列表、分类管理、问答分类筛选 ✅ |
+| M10 | 业务域复用与数据迁移：预置分类、回填脚本、文档 ✅ |
+| M11 | 端到端测试与收尾：分类/zip/分组/级联删除/问答过滤测试 + 文档 |
 
 ## 安全说明
 
