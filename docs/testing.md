@@ -170,7 +170,7 @@ $env:RAGKB_EMBEDDING_PROVIDER = "fake"
 ```
 
 ```powershell
-# 摄入单个文件（README.md → 7 chunks）或目录（docs → 12 chunks）
+# 摄入单个文件（README.md → 7 chunks）或目录（docs → N chunks，随文件大小变化）
 .venv\Scripts\python -m apps.cli.main ingest README.md
 .venv\Scripts\python -m apps.cli.main ingest docs
 
@@ -192,6 +192,11 @@ $env:RAGKB_EMBEDDING_PROVIDER = "fake"
 >   都是 `0.000`，属预期。换你自己的真实「问题 + 来源」即可得到有效指标。
 > - CLI 输出的中文在控制台可能显示乱码，是 PowerShell 控制台编码问题，不影响功能。
 > - 填了真实 API key 后（第 7 节），**不要再设 `fake`**，直接跑 CLI 即走真实模型。
+
+> ✅ 2026-08-26 已验证：`ingest README.md`=7 chunks、`ingest docs`=13 chunks；`ask` 返回 4 条引用
+> 且第一条是 `faq:1`（第 4.5 节沉淀的 FAQ 被检索命中，闭环打通）；`eval` 正常打印三行
+> （hit@4/mrr=0.000 因占位符来源）；`backup` 成功。首行 `Building prefix dict...` 是 jieba
+> 首次加载词典，正常。
 
 ---
 
