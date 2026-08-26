@@ -205,6 +205,12 @@ $env:RAGKB_EMBEDDING_PROVIDER = "fake"
 > ⚠️ 2026-08-26 本机**未安装 Docker**（`docker` 命令不存在、无 Docker Desktop 服务），此节暂未测。
 > 装好 Docker Desktop 后跑下面命令即可；**此节可选**——不装 Docker 也能用第 2 节的本地方式跑完整功能。
 
+> **本机安装 Docker 的步骤**（Windows 11 家庭版无 Hyper-V，走 WSL2 后端；需管理员 + 重启）：
+> 1. 管理员 PowerShell 运行 `wsl --install` → **重启电脑**（重启后按提示设 Ubuntu 用户名/密码）。
+> 2. 下载安装 Docker Desktop：https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe
+>    （约 540MB，双击一路默认，家庭版自动用 WSL2）。
+> 3. 启动 Docker Desktop，等鲸鱼图标提示 `Docker Desktop is running` 后验证 `docker --version`。
+
 ```powershell
 docker compose up --build
 # 打开 http://localhost:8000/（账号 admin/admin123）
