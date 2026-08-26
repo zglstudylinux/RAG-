@@ -160,25 +160,38 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8000/qa/similar?question=GP
 
 ## 5. 命令行测试（CLI）
 
-> CLI 也走配置，离线时先设 fake 环境变量（同第 2 节）。
+> ⚠️ CLI 和 API 服务一样读配置：**离线测试（无 API key）时必须先设 fake 环境变量**，
+> 否则报 `ConfigurationError: Embedding API key is not configured`。每个新窗口都要设一次。
 
 ```powershell
-# 摄入一个目录（含子目录里的 .md/.pdf/.docx/.c/.h 等）
-.venv\Scripts\python -m apps.cli.main ingest examples
-# 预期：Ingested N chunks.
+# 0. 先设 fake provider（离线模式）
+$env:RAGKB_LLM_PROVIDER = "fake"
+$env:RAGKB_EMBEDDING_PROVIDER = "fake"
+```
 
-# 问答
+```powershell
+# 摄入单个文件（README.md → 7 chunks）或目录（docs → 12 chunks）
+.venv\Scripts\python -m apps.cli.main ingest README.md
+.venv\Scripts\python -m apps.cli.main ingest docs
+
+# 问答（fake 模式答案固定英文，引用来源是真实检索）
 .venv\Scripts\python -m apps.cli.main ask "GPIO 怎么初始化？"
-# 预期：打印答案 + [1] source p.page 引用
 
 # 检索质量评估（Hit@k / MRR）
 .venv\Scripts\python -m apps.cli.main eval examples\eval_example.json
-# 预期：num_questions / hit@4 / mrr 三行
 
-# 备份 SQLite 库
+# 备份 SQLite 库（这一步不需要 fake 环境变量，只复制文件）
 .venv\Scripts\python -m apps.cli.main backup .\backups\
-# 预期：Backed up data\ragkb.sqlite -> ...\ragkb.sqlite.backup
 ```
+
+> 说明：
+> - `ingest examples` 会得到 `Ingested 0 chunks.`，因为 `examples/` 里只有 `eval_example.json`
+>   （评估模板，不是可摄入的文档类型）。要摄入文档请用 `README.md` / `docs` / 你自己的资料。
+> - `eval examples\eval_example.json` 打印 `num_questions / hit@4 / mrr` 三行；它的
+>   `relevant_sources` 是 `gpio`/`uart`/`i2c`（模板占位），库里没有这些来源时 `hit@4`、`mrr`
+>   都是 `0.000`，属预期。换你自己的真实「问题 + 来源」即可得到有效指标。
+> - CLI 输出的中文在控制台可能显示乱码，是 PowerShell 控制台编码问题，不影响功能。
+> - 填了真实 API key 后（第 7 节），**不要再设 `fake`**，直接跑 CLI 即走真实模型。
 
 ---
 
@@ -244,4 +257,5 @@ Remove-Item Env:RAGKB_VLM_PROVIDER -ErrorAction SilentlyContinue
 | 2026-08-26 | 0 | `.venv\Scripts\activate` 报「无法加载模块 .venv」 | 已解决：改用 `.venv\Scripts\python` 直接执行 |
 | 2026-08-26 | 4.1 | `curl.exe -d '{"username":...}'` 报 `json_invalid`（JSON 双引号被 PowerShell 吞掉） | 已解决：JSON 请求改用 `Invoke-RestMethod` |
 | 2026-08-26 | 4.3/4.5 | `Invoke-RestMethod -Body` 传中文 question 被存成 `???? GPIO ???` | 已解决：JSON 先 `[System.Text.Encoding]::UTF8.GetBytes()` 转字节再传 |
+| 2026-08-26 | 5 | CLI 报 `ConfigurationError: Embedding API key is not configured` | 已解决：跑 CLI 前先 `$env:RAGKB_LLM_PROVIDER="fake"`、`$env:RAGKB_EMBEDDING_PROVIDER="fake"`（backup 除外） |
 |  |  |  |  |
