@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ragkb 知识库</title>
+<style>
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6f8; color: #1f2328; }
+  .container { max-width: 860px; margin: 0 auto; padding: 24px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .card { background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; color: #57606a; margin-bottom: 4px; }
+  input[type=text], input[type=password], textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 14px; font-family: inherit; }
+  button { background: #0969da; color: #fff; border: 0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+  button:disabled { background: #a0b8d8; cursor: default; }
+  button.ghost { background: #fff; color: #0969da; border: 1px solid #0969da; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .msg { border-radius: 8px; padding: 10px 12px; margin: 8px 0; max-width: 82%; white-space: pre-wrap; font-size: 14px; }
+  .q { background: #0969da; color: #fff; margin-left: auto; }
+  .a { background: #eef2f6; }
+  .cite { font-size: 12px; color: #57606a; border-top: 1px solid #e4e7ec; margin-top: 8px; padding-top: 6px; }
+  .doc { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f0f2f4; font-size: 14px; }
+  .muted { color: #57606a; font-size: 12px; }
+  .hidden { display: none; }
+  #status { min-height: 18px; font-size: 13px; color: #57606a; margin-bottom: 8px; }
+  #chat { max-height: 420px; overflow-y: auto; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ragkb 技术资料知识库</h1>
+  <div id="status" class="muted"></div>
+
+  <div id="login-view" class="card">
+    <h2>登录</h2>
+    <label>用户名</label>
+    <input type="text" id="username" value="admin">
+    <label style="margin-top:8px">密码</label>
+    <input type="password" id="password" value="admin123">
+    <div style="margin-top:12px"><button id="login-btn">登录</button></div>
+  </div>
+
+  <div id="app-view" class="hidden">
+    <div class="card">
+      <h2>上传资料（PDF / Word / Markdown）</h2>
+      <div class="row">
+        <input type="file" id="file-input" accept=".pdf,.docx,.md,.markdown">
+        <button id="upload-btn">上传并索引</button>
+      </div>
+      <div id="upload-status" class="muted" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>已入库资料</h2>
+      <div id="docs-list"><div class="muted">加载中…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>提问</h2>
+      <div id="chat"></div>
+      <div class="row">
+        <textarea id="question" rows="2" placeholder="输入你的问题，例如：如何配置 GPIO 引脚？"></textarea>
+        <button id="ask-btn">发送</button>
+      </div>
+    </div>
+
+    <div class="row" style="justify-content: flex-end">
+      <button class="ghost" id="logout-btn">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const getToken = () => localStorage.getItem("ragkb_token");
+const authHeaders = () => ({ "Authorization": "Bearer " + getToken(), "Content-Type": "application/json" });
+
+function status(msg) { document.getElementById("status").textContent = msg || ""; }
+function showView(name) {
+  document.getElementById("login-view").classList.toggle("hidden", name !== "login");
+  document.getElementById("app-view").classList.toggle("hidden", name !== "app");
+}
+function logout() { localStorage.removeItem("ragkb_token"); showView("login"); status(""); }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function login() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  const res = await fetch("/auth/login", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
+  if (!res.ok) { status("登录失败：用户名或密码错误"); return; }
+  const data = await res.json();
+  localStorage.setItem("ragkb_token", data.token);
+  showView("app");
+  status("已登录：" + data.username + "（" + data.role + "）");
+  loadDocs();
+}
+
+async function upload() {
+  const input = document.getElementById("file-input");
+  if (!input.files.length) return;
+  const form = new FormData();
+  form.append("file", input.files[0]);
+  document.getElementById("upload-btn").disabled = true;
+  try {
+    const res = await fetch("/ingest", { method: "POST", headers: { "Authorization": "Bearer " + getToken() }, body: form });
+    if (!res.ok) { status("上传失败"); return; }
+    const data = await res.json();
+    document.getElementById("upload-status").textContent = "已索引 " + data.chunks + " 个片段（" + data.filename + "）";
+    input.value = "";
+    loadDocs();
+  } finally {
+    document.getElementById("upload-btn").disabled = false;
+  }
+}
+
+async function loadDocs() {
+  const res = await fetch("/documents", { headers: { "Authorization": "Bearer " + getToken() } });
+  const list = document.getElementById("docs-list");
+  if (!res.ok) { list.innerHTML = '<div class="muted">加载失败</div>'; return; }
+  const data = await res.json();
+  if (!data.documents.length) { list.innerHTML = '<div class="muted">暂无资料</div>'; return; }
+  list.innerHTML = data.documents.map(d =>
+    '<div class="doc"><span>' + escapeHtml(d.source) + ' <span class="muted">(' + d.chunks + ' 片段)</span></span>' +
+    '<button class="ghost" data-source="' + escapeHtml(d.source) + '">删除</button></div>'
+  ).join("");
+}
+
+async function removeDoc(source) {
+  const res = await fetch("/documents/" + encodeURIComponent(source), {
+    method: "DELETE", headers: { "Authorization": "Bearer " + getToken() }
+  });
+  if (res.ok) loadDocs();
+}
+
+function addMsg(cls, text, cites) {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.textContent = text;
+  if (cites && cites.length) {
+    const c = document.createElement("div");
+    c.className = "cite";
+    c.innerHTML = cites.map((x, i) => "[" + (i + 1) + "] " + escapeHtml(x.source) + (x.page ? " p." + x.page : "")).join("<br>");
+    div.appendChild(c);
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function ask() {
+  const q = document.getElementById("question").value.trim();
+  if (!q) return;
+  addMsg("q", q);
+  document.getElementById("question").value = "";
+  try {
+    const res = await fetch("/ask", { method: "POST", headers: authHeaders(), body: JSON.stringify({ question: q }) });
+    if (!res.ok) { addMsg("a", "请求失败"); return; }
+    const data = await res.json();
+    addMsg("a", data.answer, data.citations);
+  } catch (e) { addMsg("a", "请求出错：" + e.message); }
+}
+
+document.getElementById("login-btn").onclick = login;
+document.getElementById("logout-btn").onclick = logout;
+document.getElementById("upload-btn").onclick = upload;
+document.getElementById("ask-btn").onclick = ask;
+document.getElementById("question").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
+});
+document.getElementById("docs-list").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-source]");
+  if (btn) removeDoc(btn.getAttribute("data-source"));
+});
+
+if (getToken()) { showView("app"); loadDocs(); } else { showView("login"); }
+</script>
+</body>
+</html>

@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from apps.api.main import create_app
 
 
-def test_health_endpoint() -> None:
+def test_health_endpoint(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("RAGKB_STORE_PATH", str(tmp_path / "store.sqlite"))
     client = TestClient(create_app())
     response = client.get("/health")
     assert response.status_code == 200

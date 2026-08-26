@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     chunk_overlap: int = 100
     retrieval_top_k: int = 4
 
+    # Auth
+    jwt_secret: str = "change-me-in-production-use-a-long-random-secret"
+    jwt_expires_minutes: int = 720
+    default_admin_username: str = "admin"
+    default_admin_password: str = "admin123"
+
     @property
     def public_summary(self) -> dict[str, object]:
         """Sanitized view of the config (no secrets) for health endpoints."""

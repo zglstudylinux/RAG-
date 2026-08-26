@@ -23,13 +23,21 @@ class IngestionPipeline:
         self._store = store
         self._splitter = splitter or RecursiveCharacterSplitter()
 
-    async def ingest_path(self, path: str | Path) -> int:
-        """Ingest a file or directory and return the number of chunks stored."""
+    async def ingest_path(self, path: str | Path, *, source: str | None = None) -> int:
+        """Ingest a file or directory and return the number of chunks stored.
+
+        When ``source`` is given it overrides the ``source`` metadata (useful when
+        ingesting uploaded files whose temporary path is not meaningful).
+        """
         target = Path(path)
         if target.is_dir():
             documents = load_directory(target)
         else:
             documents = load_document(target)
+        if source is not None:
+            for document in documents:
+                document.metadata["source"] = source
+                document.metadata["title"] = Path(source).stem
         if not documents:
             return 0
         chunks = self._splitter.split_documents(documents)

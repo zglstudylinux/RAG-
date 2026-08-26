@@ -1,9 +1,10 @@
-"""Application wiring: lazily build pipelines once per app instance."""
+"""Application wiring: lazily build pipelines and resolve the current user."""
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Request, status
 
+from ragkb.auth import decode_token
 from ragkb.chunking.splitter import RecursiveCharacterSplitter
 from ragkb.config import Settings
 from ragkb.core.ingestion import IngestionPipeline
@@ -24,3 +25,18 @@ def ensure_services(app: FastAPI) -> None:
     app.state.llm = llm
     app.state.ingestion_pipeline = IngestionPipeline(embedding, store, splitter)
     app.state.rag_pipeline = RAGPipeline(embedding, store, llm)
+
+
+async def get_current_user(
+    request: Request, authorization: str | None = Header(default=None)
+) -> dict[str, str]:
+    """Resolve the authenticated user from the ``Authorization: Bearer`` header."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
+    token = authorization.removeprefix("Bearer ").strip()
+    payload = decode_token(request.app.state.settings.jwt_secret, token)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    return {"username": payload["sub"], "role": payload.get("role", "admin")}

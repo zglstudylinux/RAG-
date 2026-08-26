@@ -29,10 +29,24 @@ class SQLiteVectorStore(VectorStore):
         self._lock = threading.Lock()
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS chunks ("
-            "id TEXT PRIMARY KEY, text TEXT NOT NULL, "
+            "id TEXT PRIMARY KEY, source TEXT NOT NULL, text TEXT NOT NULL, "
             "metadata TEXT NOT NULL, embedding BLOB NOT NULL)"
         )
+        self._migrate()
         self._conn.commit()
+
+    def _migrate(self) -> None:
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(chunks)").fetchall()}
+        if "source" not in columns:
+            self._conn.execute(
+                "ALTER TABLE chunks ADD COLUMN source TEXT NOT NULL DEFAULT ''"
+            )
+            try:
+                self._conn.execute(
+                    "UPDATE chunks SET source = COALESCE(json_extract(metadata, '$.source'), '')"
+                )
+            except sqlite3.OperationalError:
+                pass  # json_extract unavailable; leave existing rows empty.
 
     def add(self, chunks: Sequence[Chunk], embeddings: Sequence[Sequence[float]]) -> None:
         if len(chunks) != len(embeddings):
@@ -41,11 +55,18 @@ class SQLiteVectorStore(VectorStore):
         for chunk, embedding in zip(chunks, embeddings):
             blob = np.asarray(embedding, dtype=np.float32).tobytes()
             rows.append(
-                (chunk.id, chunk.text, json.dumps(chunk.metadata, ensure_ascii=False), blob)
+                (
+                    chunk.id,
+                    str(chunk.metadata.get("source", "")),
+                    chunk.text,
+                    json.dumps(chunk.metadata, ensure_ascii=False),
+                    blob,
+                )
             )
         with self._lock:
             self._conn.executemany(
-                "INSERT OR REPLACE INTO chunks (id, text, metadata, embedding) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO chunks (id, source, text, metadata, embedding) "
+                "VALUES (?, ?, ?, ?, ?)",
                 rows,
             )
             self._conn.commit()
@@ -75,6 +96,19 @@ class SQLiteVectorStore(VectorStore):
             chunk = Chunk(id=row[0], text=row[1], metadata=json.loads(row[2]))
             results.append(SearchResult(chunk=chunk, score=float(scores[index])))
         return results
+
+    def list_sources(self) -> list[dict[str, object]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT source, COUNT(*) FROM chunks GROUP BY source ORDER BY source"
+            ).fetchall()
+        return [{"source": row[0], "chunks": row[1]} for row in rows]
+
+    def delete_source(self, source: str) -> int:
+        with self._lock:
+            cursor = self._conn.execute("DELETE FROM chunks WHERE source = ?", (source,))
+            self._conn.commit()
+            return cursor.rowcount
 
     def count(self) -> int:
         with self._lock:
