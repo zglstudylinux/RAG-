@@ -66,6 +66,8 @@ uvicorn apps.api.main:app --reload
 # 5. 命令行摄入文档并提问（需要真实 API key，或用 fake 离线演示）
 python -m apps.cli.main ingest ./docs/
 python -m apps.cli.main ask "如何配置 GPIO 引脚？"
+python -m apps.cli.main list                              # 列出已入库来源
+python -m apps.cli.main delete ./docs/wrong.pdf           # 删除某来源（撤回错误文件）
 python -m apps.cli.main eval examples/eval_example.json   # 检索质量评估（Hit@k / MRR）
 python -m apps.cli.main backup ./backups/                  # 备份 SQLite 库
 

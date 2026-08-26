@@ -1,10 +1,14 @@
-"""Command-line interface: ingest, ask, evaluate, and back up."""
+"""Command-line interface: ingest, ask, evaluate, back up, list, and delete."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ragkb.indexing.sqlite_store import SQLiteVectorStore
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,6 +32,14 @@ def main(argv: list[str] | None = None) -> int:
     backup = subparsers.add_parser("backup", help="Back up the SQLite store file")
     backup.add_argument("dest", help="destination file or directory")
 
+    subparsers.add_parser("list", help="List ingested sources and their chunk counts")
+
+    delete = subparsers.add_parser("delete", help="Delete an ingested source from the store")
+    delete.add_argument(
+        "source",
+        help="exact source path, or a substring that uniquely matches one source",
+    )
+
     args = parser.parse_args(argv)
     return asyncio.run(_run(args))
 
@@ -44,6 +56,30 @@ async def _run(args: argparse.Namespace) -> int:
         target = backup_store(settings.store_path, args.dest)
         print(f"Backed up {settings.store_path} -> {target}")
         return 0
+
+    if args.command in ("list", "delete"):
+        from ragkb.indexing.sqlite_store import SQLiteVectorStore
+
+        store = SQLiteVectorStore(settings.store_path)
+        try:
+            if args.command == "list":
+                sources = store.list_sources()
+                if not sources:
+                    print("(store is empty)")
+                for item in sources:
+                    tags = [t for t in (item["customer"], item["model"]) if t]
+                    suffix = f"  [{', '.join(tags)}]" if tags else ""
+                    print(f"{item['chunks']:>5} | {item['source']}{suffix}")
+                return 0
+
+            target = _resolve_source(store, args.source)
+            if target is None:
+                return 1
+            deleted = store.delete_source(target)
+            print(f"Deleted {deleted} chunks: {target}")
+            return 0
+        finally:
+            store.close()
 
     import json
     from pathlib import Path
@@ -74,6 +110,30 @@ async def _run(args: argparse.Namespace) -> int:
     finally:
         services.store.close()
     return 0
+
+
+def _resolve_source(store: SQLiteVectorStore, needle: str) -> str | None:
+    """Resolve a user-supplied source string to an exact stored source path.
+
+    Accepts an exact path, or a substring that uniquely matches one source
+    (case-insensitive). Prints guidance and returns None when it cannot resolve.
+    """
+    sources = [item["source"] for item in store.list_sources()]
+    if needle in sources:
+        return needle
+    matches = [s for s in sources if needle.lower() in s.lower()]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        print(f"No source matched: {needle}", file=sys.stderr)
+    else:
+        print(
+            f"Ambiguous: {len(matches)} sources match {needle!r}; be more specific:",
+            file=sys.stderr,
+        )
+        for source in matches:
+            print(f"  - {source}", file=sys.stderr)
+    return None
 
 
 if __name__ == "__main__":
