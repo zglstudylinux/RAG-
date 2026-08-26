@@ -3,8 +3,8 @@
 一个**可插拔、可复用、可迭代**的 RAG 知识库，面向芯片原厂 SDK 技术资料（SDK 源码、开发指南
 PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 
-> 当前状态：**M5 双门户与权限**（RBAC 角色 + 按客户/型号的 collection ACL，客户自助问答隔离）。
-> M4 检索质量、M3 代码+原理图、M2 Web 门户、M1 文档接入、M0 骨架已完成。FAQ、工程化待后续。
+> 当前状态：**M6 问题收集与 FAQ 闭环**（Q&A 记录、反馈、相似问题、审核沉淀为 FAQ）。
+> M5 双门户权限、M4 检索质量、M3 代码+原理图、M2 Web 门户、M1 文档接入、M0 骨架已完成。
 
 ## 设计原则
 
@@ -17,7 +17,7 @@ PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 ```
 ragkb/
 ├─ apps/
-│  ├─ api/            # FastAPI 后端（/health、/auth、/ingest、/ask、/documents、/users）
+│  ├─ api/            # FastAPI 后端（/health、/auth、/ingest、/ask、/documents、/users、/qa）
 │  └─ cli/            # 命令行（ingest / ask）
 ├─ packages/ragkb/    # 可复用核心包
 │  ├─ config.py       # 配置（pydantic-settings，RAGKB_ 前缀）
@@ -26,7 +26,7 @@ ragkb/
 │  ├─ core/           # 领域模型、摄入/问答管线、客户-型号 ACL
 │  ├─ loaders/        # PDF / Word / Markdown / 源码 / 原理图(VLM) 解析器
 │  ├─ chunking/       # 分块策略（文本 + 源码结构感知）
-│  ├─ indexing/       # SQLite 向量库 + 用户存储（可插拔 VectorStore 接口）
+│  ├─ indexing/       # SQLite 向量库 + 用户存储 + Q&A 记录（可插拔 VectorStore 接口）
 │  ├─ retrieval/      # 向量 + BM25 混合检索（RRF）、可插拔 rerank
 │  ├─ web/            # 内置单页门户（登录 / 上传 / 问答）
 │  └─ eval/           # 检索评估（Hit@k / MRR）
@@ -116,7 +116,7 @@ curl -F "file=@sdk.zip" -F "customer=acme" -F "model=x1" \
 | M3 | 代码 + 原理图接入：代码结构感知分块、原理图 VLM 描述 ✅ |
 | M4 | 检索质量：BM25+向量混合、rerank、评估脚本 ✅ |
 | M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL ✅ |
-| M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 |
+| M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 ✅ |
 | M7 | 工程化：docker-compose、迁移、日志、备份、发布 v1 |
 
 ## 安全说明
