@@ -12,6 +12,9 @@ from ragkb.core.errors import ConfigurationError
 from ragkb.core.ingestion import IngestionPipeline
 from ragkb.core.rag import RAGPipeline
 from ragkb.providers.registry import build_embedding, build_llm, build_vlm
+from ragkb.retrieval.hybrid import HybridRetriever
+from ragkb.retrieval.rerank import NoopReranker
+from ragkb.retrieval.vector import VectorRetriever
 
 
 def ensure_services(app: FastAPI) -> None:
@@ -26,15 +29,23 @@ def ensure_services(app: FastAPI) -> None:
         vlm = build_vlm(settings)
     except ConfigurationError:
         vlm = None  # VLM is optional; schematics fall back to text extraction.
+    if settings.retrieval_mode == "hybrid":
+        retriever = HybridRetriever(
+            embedding, store, settings.hybrid_candidate_k, settings.hybrid_rrf_k
+        )
+    else:
+        retriever = VectorRetriever(embedding, store)
+    reranker = NoopReranker()
     splitter = RecursiveCharacterSplitter(settings.chunk_size, settings.chunk_overlap)
     code_splitter = CodeSplitter()
     app.state.embedding = embedding
     app.state.llm = llm
     app.state.vlm = vlm
+    app.state.retriever = retriever
     app.state.ingestion_pipeline = IngestionPipeline(
         embedding, store, splitter, code_splitter, vlm
     )
-    app.state.rag_pipeline = RAGPipeline(embedding, store, llm)
+    app.state.rag_pipeline = RAGPipeline(embedding, store, llm, retriever, reranker)
 
 
 async def get_current_user(

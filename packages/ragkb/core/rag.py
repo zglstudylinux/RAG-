@@ -1,10 +1,12 @@
-"""RAG query pipeline: retrieve -> prompt -> generate, with citations."""
+"""RAG query pipeline: retrieve -> rerank -> prompt -> generate, with citations."""
 
 from __future__ import annotations
 
 from ragkb.core.models import Answer, Citation, SearchResult
 from ragkb.indexing.base import VectorStore
 from ragkb.providers.base import EmbeddingProvider, LLMProvider, Message
+from ragkb.retrieval.base import Retriever
+from ragkb.retrieval.rerank import NoopReranker, Reranker
 from ragkb.retrieval.vector import VectorRetriever
 
 SYSTEM_PROMPT = (
@@ -17,12 +19,21 @@ SYSTEM_PROMPT = (
 class RAGPipeline:
     """Answers questions by retrieving chunks and generating a cited answer."""
 
-    def __init__(self, embedding: EmbeddingProvider, store: VectorStore, llm: LLMProvider) -> None:
-        self._retriever = VectorRetriever(embedding, store)
+    def __init__(
+        self,
+        embedding: EmbeddingProvider,
+        store: VectorStore,
+        llm: LLMProvider,
+        retriever: Retriever | None = None,
+        reranker: Reranker | None = None,
+    ) -> None:
+        self._retriever = retriever or VectorRetriever(embedding, store)
+        self._reranker = reranker or NoopReranker()
         self._llm = llm
 
     async def answer(self, question: str, k: int = 4) -> Answer:
         results = await self._retriever.retrieve(question, k=k)
+        results = await self._reranker.rerank(question, results)
         if not results:
             return Answer(text="资料中未找到相关内容。", citations=[])
         context, citations = self._format_context(results)

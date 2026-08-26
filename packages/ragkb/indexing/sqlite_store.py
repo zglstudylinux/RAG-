@@ -114,6 +114,13 @@ class SQLiteVectorStore(VectorStore):
         with self._lock:
             return int(self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
 
+    def all_chunks(self) -> list[Chunk]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, text, metadata FROM chunks"
+            ).fetchall()
+        return [Chunk(id=row[0], text=row[1], metadata=json.loads(row[2])) for row in rows]
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()

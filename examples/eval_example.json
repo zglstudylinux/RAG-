@@ -1,0 +1,7 @@
+{
+  "questions": [
+    {"question": "如何配置 GPIO 引脚？", "relevant_sources": ["gpio"]},
+    {"question": "UART 波特率怎么设置？", "relevant_sources": ["uart"]},
+    {"question": "I2C 总线怎么读写？", "relevant_sources": ["i2c"]}
+  ]
+}

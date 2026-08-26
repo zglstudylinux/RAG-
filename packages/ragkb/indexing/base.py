@@ -22,3 +22,7 @@ class VectorStore(ABC):
     @abstractmethod
     def count(self) -> int:
         """Return the number of stored chunks."""
+
+    @abstractmethod
+    def all_chunks(self) -> list[Chunk]:
+        """Return every stored chunk (for building lexical indexes)."""

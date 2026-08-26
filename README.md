@@ -3,9 +3,8 @@
 一个**可插拔、可复用、可迭代**的 RAG 知识库，面向芯片原厂 SDK 技术资料（SDK 源码、开发指南
 PDF/Word/Markdown、核心板原理图、客户 FAQ）的检索与问答。
 
-> 当前状态：**M3 代码 + 原理图接入**（源码结构感知分块、图片型 PDF 走 VLM 生成可检索描述）。
-> M2 Web 门户（JWT + 上传/管理 + 聊天带引用）、M1 文档接入、M0 骨架已完成。
-> 混合检索、权限、FAQ 等能力在后续里程碑中逐步加入。
+> 当前状态：**M4 检索质量**（BM25+向量混合 RRF、可插拔 rerank、Hit@k/MRR 评估脚本）。
+> M3 代码+原理图、M2 Web 门户、M1 文档接入、M0 骨架已完成。权限、FAQ、工程化待后续里程碑。
 
 ## 设计原则
 
@@ -28,9 +27,9 @@ ragkb/
 │  ├─ loaders/        # PDF / Word / Markdown / 源码 / 原理图(VLM) 解析器
 │  ├─ chunking/       # 分块策略（文本 + 源码结构感知）
 │  ├─ indexing/       # SQLite 向量库 + 用户存储（可插拔 VectorStore 接口）
-│  ├─ retrieval/      # 向量检索（BM25/rerank 后续）
+│  ├─ retrieval/      # 向量 + BM25 混合检索（RRF）、可插拔 rerank
 │  ├─ web/            # 内置单页门户（登录 / 上传 / 问答）
-│  └─ eval/           # 评估（后续）
+│  └─ eval/           # 检索评估（Hit@k / MRR）
 ├─ tests/
 ├─ .github/workflows/ci.yml
 └─ pyproject.toml
@@ -64,6 +63,7 @@ uvicorn apps.api.main:app --reload
 # 5. 命令行摄入文档并提问（需要真实 API key，或用 fake 离线演示）
 python -m apps.cli.main ingest ./docs/
 python -m apps.cli.main ask "如何配置 GPIO 引脚？"
+python -m apps.cli.main eval examples/eval_example.json   # 检索质量评估（Hit@k / MRR）
 
 # 6. 打开浏览器访问 http://127.0.0.1:8000/ （内置 Web 门户，默认账号 admin / admin123）
 
@@ -97,7 +97,7 @@ LLM 与 Embedding 均采用 OpenAI 兼容协议，一套客户端即可覆盖 De
 | M1 | 文档接入：PDF/Word/MD 解析 → 分块 → 入库 → CLI/API 问答（带引用）✅ |
 | M2 | Web 门户 v1：上传/管理、检索聊天、引用展示、JWT 登录 ✅ |
 | M3 | 代码 + 原理图接入：代码结构感知分块、原理图 VLM 描述 ✅ |
-| M4 | 检索质量：BM25+向量混合、rerank、评估脚本 |
+| M4 | 检索质量：BM25+向量混合、rerank、评估脚本 ✅ |
 | M5 | 双门户与权限：RBAC + 按客户/型号的 collection ACL |
 | M6 | 问题收集与 FAQ 闭环：Q&A 记录、反馈、相似聚类、审核沉淀 |
 | M7 | 工程化：docker-compose、迁移、日志、备份、发布 v1 |

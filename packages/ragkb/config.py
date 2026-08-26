@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     chunk_overlap: int = 100
     retrieval_top_k: int = 4
 
+    # Retrieval strategy
+    retrieval_mode: str = "hybrid"  # "hybrid" | "vector"
+    hybrid_candidate_k: int = 10
+    hybrid_rrf_k: int = 60
+    rerank_provider: str = "none"  # reserved for API rerankers (e.g. bge-reranker)
+
     # Auth
     jwt_secret: str = "change-me-in-production-use-a-long-random-secret"
     jwt_expires_minutes: int = 720
@@ -66,6 +72,7 @@ class Settings(BaseSettings):
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
             "retrieval_top_k": self.retrieval_top_k,
+            "retrieval_mode": self.retrieval_mode,
         }
 
 
