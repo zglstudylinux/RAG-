@@ -34,6 +34,13 @@
   .cat-item { display: flex; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f0f2f4; font-size: 14px; }
   .cat-item .name { flex: 1; }
   .cat-item.child { padding-left: 26px; }
+  .folder { border: 1px solid #e4e7ec; border-radius: 8px; margin: 6px 0; overflow: hidden; }
+  .folder-head { display: flex; gap: 8px; align-items: center; padding: 8px 10px; background: #fafbfc; cursor: pointer; user-select: none; }
+  .folder-head .arrow { color: var(--muted); width: 14px; flex: none; }
+  .folder-head .name { font-weight: 600; }
+  .folder-head .spacer { flex: 1; }
+  .folder-body { padding: 0 10px 6px; }
+  .folder-body .doc { border-bottom-color: #f0f2f4; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #eef2f6; color: var(--muted); white-space: nowrap; }
   .muted { color: var(--muted); font-size: 12px; }
   .hidden { display: none; }
@@ -358,6 +365,8 @@ async function refreshDocs() {
     const items = data.documents || [];
     list.innerHTML = "";
     if (!items.length) { list.innerHTML = '<div class="muted">（无资料）</div>'; return; }
+
+    // 按分类分组，分类内再按文件夹/压缩包分组（可折叠，支持整组删除）
     const byCat = new Map();
     for (const d of items) {
       const cat = d.category || "";
@@ -366,21 +375,62 @@ async function refreshDocs() {
     }
     const cats = [...byCat.keys()].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
     for (const cat of cats) {
-      const group = byCat.get(cat);
-      const header = document.createElement("h3");
-      header.textContent = `${cat || "（未分类）"}（${group.length} 份）`;
-      list.appendChild(header);
-      for (const d of group) {
-        const row = document.createElement("div");
-        row.className = "doc";
-        row.innerHTML = `
-          <span class="name" title="${esc(d.source)}">${esc(cleanName(d.source))}</span>
-          <span class="badge">${d.chunks} 块</span>
-          <button class="ghost" data-source="${esc(d.source)}">删除</button>`;
-        list.appendChild(row);
+      const catHeader = document.createElement("h3");
+      catHeader.textContent = cat || "（未分类）";
+      list.appendChild(catHeader);
+
+      const byFolder = new Map();
+      for (const d of byCat.get(cat)) {
+        const f = d.folder || "";
+        if (!byFolder.has(f)) byFolder.set(f, []);
+        byFolder.get(f).push(d);
+      }
+      const folders = [...byFolder.keys()].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+      for (const folder of folders) {
+        const fItems = byFolder.get(folder);
+        if (folder) {
+          list.appendChild(folderGroup(folder, fItems));
+        } else {
+          for (const d of fItems) list.appendChild(docRow(d));
+        }
       }
     }
   } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }
+}
+
+function docRow(d) {
+  const row = document.createElement("div");
+  row.className = "doc";
+  row.innerHTML = `
+    <span class="name" title="${esc(d.source)}">${esc(cleanName(d.source))}</span>
+    <span class="badge">${d.chunks} 块</span>
+    <button class="ghost" data-source="${esc(d.source)}">删除</button>`;
+  return row;
+}
+
+function folderGroup(folder, items) {
+  const totalChunks = items.reduce((sum, d) => sum + (d.chunks || 0), 0);
+  const wrap = document.createElement("div");
+  wrap.className = "folder";
+  const head = document.createElement("div");
+  head.className = "folder-head";
+  head.innerHTML = `
+    <span class="arrow">▸</span>
+    <span class="name">${esc(folder)}</span>
+    <span class="badge">${items.length} 份 · ${totalChunks} 块</span>
+    <span class="spacer"></span>
+    <button class="danger" data-delfolder="${esc(folder)}">删除整组</button>`;
+  const body = document.createElement("div");
+  body.className = "folder-body hidden";
+  for (const d of items) body.appendChild(docRow(d));
+  head.addEventListener("click", e => {
+    if (e.target.closest("button")) return;  // 点删除按钮不折叠
+    const hidden = body.classList.toggle("hidden");
+    head.querySelector(".arrow").textContent = hidden ? "▸" : "▾";
+  });
+  wrap.appendChild(head);
+  wrap.appendChild(body);
+  return wrap;
 }
 
 async function removeDoc(source) {
@@ -388,6 +438,15 @@ async function removeDoc(source) {
   try {
     await api("DELETE", "/documents/" + encodeURIComponent(source));
     status("已删除：" + cleanName(source));
+    refreshDocs();
+  } catch (e) { status("删除失败：" + e.message); }
+}
+
+async function removeFolder(folder) {
+  if (!confirm(`确定删除整组「${folder}」下的全部资料？此操作不可撤销。`)) return;
+  try {
+    const data = await api("DELETE", "/documents/folder/" + encodeURIComponent(folder));
+    status(`已删除整组「${folder}」：${data.deleted_chunks} 块`);
     refreshDocs();
   } catch (e) { status("删除失败：" + e.message); }
 }
@@ -504,6 +563,8 @@ document.getElementById("tabs").addEventListener("click", e => {
 document.getElementById("docs-list").addEventListener("click", e => {
   const btn = e.target.closest("button[data-source]");
   if (btn) removeDoc(btn.getAttribute("data-source"));
+  const fb = e.target.closest("button[data-delfolder]");
+  if (fb) removeFolder(fb.getAttribute("data-delfolder"));
 });
 document.getElementById("cats-list").addEventListener("click", e => {
   const rename = e.target.closest("button[data-rename]");

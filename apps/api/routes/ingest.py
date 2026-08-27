@@ -95,5 +95,6 @@ async def _ingest_archive(
                 customer=customer,
                 model=model,
                 category=category,
+                folder=filename,
             )
     return count, len(files)

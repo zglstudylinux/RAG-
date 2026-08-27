@@ -79,3 +79,26 @@ def test_ingest_zip_extracts_and_indexes(monkeypatch, tmp_path) -> None:
 
     sources = [d["source"] for d in client.get("/documents", headers=headers).json()["documents"]]
     assert any(source.startswith("sdk.zip/") for source in sources)
+
+
+def test_zip_folder_and_delete_folder(monkeypatch, tmp_path) -> None:
+    client = _client(monkeypatch, tmp_path)
+    headers = _login(client)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("src/main.c", "int main(void) { return 0; }\n")
+        archive.writestr("docs/readme.md", "# SDK\n\nThis is the SDK.\n")
+
+    response = client.post(
+        "/ingest",
+        files={"file": ("sdk.zip", buffer.getvalue(), "application/zip")},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    docs = client.get("/documents", headers=headers).json()["documents"]
+    assert docs and all(d["folder"] == "sdk.zip" for d in docs)
+
+    response = client.delete("/documents/folder/sdk.zip", headers=headers)
+    assert response.status_code == 200
+    assert client.get("/documents", headers=headers).json()["documents"] == []

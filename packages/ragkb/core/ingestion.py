@@ -39,12 +39,14 @@ class IngestionPipeline:
         customer: str | None = None,
         model: str | None = None,
         category: str | None = None,
+        folder: str | None = None,
     ) -> int:
         """Ingest a file or directory and return the number of chunks stored.
 
         Image-heavy PDFs (schematics) are routed through the VLM when one is configured;
         source files use a structure-aware code splitter. ``customer``/``model`` tag the
-        chunks for ACL scoping; ``category`` tags them for chip/project organization.
+        chunks for ACL scoping; ``category`` tags them for chip/project organization;
+        ``folder`` groups them by their top-level directory (used for bulk delete).
         """
         target = Path(path)
         files = self._collect_files(target)
@@ -59,6 +61,12 @@ class IngestionPipeline:
                 docs = await SchematicLoader(self._vlm).load(file_path)
             else:
                 docs = load_document(file_path)
+            # Group = explicit folder, else the top-level directory relative to the
+            # ingested root (only meaningful for directory ingestion).
+            doc_folder = folder
+            if doc_folder is None and not single_file:
+                relative = file_path.relative_to(target)
+                doc_folder = relative.parts[0] if relative.parts else ""
             for document in docs:
                 if single_file and source is not None:
                     document.metadata["source"] = source
@@ -69,6 +77,8 @@ class IngestionPipeline:
                     document.metadata["model"] = model
                 if category is not None:
                     document.metadata["category"] = category
+                if doc_folder is not None:
+                    document.metadata["folder"] = doc_folder
             documents.extend(docs)
         if not documents:
             return 0

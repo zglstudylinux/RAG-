@@ -33,7 +33,7 @@ class SQLiteVectorStore(VectorStore):
             "id TEXT PRIMARY KEY, source TEXT NOT NULL, text TEXT NOT NULL, "
             "metadata TEXT NOT NULL, embedding BLOB NOT NULL, "
             "customer TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '', "
-            "category TEXT NOT NULL DEFAULT '')"
+            "category TEXT NOT NULL DEFAULT '', folder TEXT NOT NULL DEFAULT '')"
         )
         self._migrate()
         self._conn.commit()
@@ -48,7 +48,7 @@ class SQLiteVectorStore(VectorStore):
                 )
             except sqlite3.OperationalError:
                 pass  # json_extract unavailable; leave existing rows empty.
-        for column in ("customer", "model", "category"):
+        for column in ("customer", "model", "category", "folder"):
             if column not in columns:
                 self._conn.execute(
                     f"ALTER TABLE chunks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''"
@@ -71,13 +71,14 @@ class SQLiteVectorStore(VectorStore):
                     str(metadata.get("customer", "")),
                     str(metadata.get("model", "")),
                     str(metadata.get("category", "")),
+                    str(metadata.get("folder", "")),
                 )
             )
         with self._lock:
             self._conn.executemany(
                 "INSERT OR REPLACE INTO chunks "
-                "(id, source, text, metadata, embedding, customer, model, category) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(id, source, text, metadata, embedding, customer, model, category, folder) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
             self._conn.commit()
@@ -134,9 +135,9 @@ class SQLiteVectorStore(VectorStore):
 
     def list_sources(self, category: str | None = None) -> list[dict[str, object]]:
         query = (
-            "SELECT source, customer, model, category, COUNT(*) FROM chunks "
+            "SELECT source, customer, model, category, folder, COUNT(*) FROM chunks "
             + ("WHERE category = ? " if category is not None else "")
-            + "GROUP BY source, customer, model, category ORDER BY source"
+            + "GROUP BY source, customer, model, category, folder ORDER BY source"
         )
         with self._lock:
             rows = (
@@ -150,10 +151,17 @@ class SQLiteVectorStore(VectorStore):
                 "customer": row[1],
                 "model": row[2],
                 "category": row[3],
-                "chunks": row[4],
+                "folder": row[4],
+                "chunks": row[5],
             }
             for row in rows
         ]
+
+    def delete_folder(self, folder: str) -> int:
+        with self._lock:
+            cursor = self._conn.execute("DELETE FROM chunks WHERE folder = ?", (folder,))
+            self._conn.commit()
+            return cursor.rowcount
 
     def delete_source(self, source: str) -> int:
         with self._lock:

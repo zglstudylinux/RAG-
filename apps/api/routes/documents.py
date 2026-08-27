@@ -26,3 +26,14 @@ async def delete_document(
     if deleted == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return {"deleted_chunks": deleted, "source": source}
+
+
+@router.delete("/documents/folder/{folder}")
+async def delete_folder(
+    folder: str, request: Request, user: dict = Depends(require_internal)
+) -> dict:
+    """Delete every chunk whose top-level folder (or archive) matches ``folder``."""
+    deleted = request.app.state.store.delete_folder(folder)
+    if deleted == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+    return {"deleted_chunks": deleted, "folder": folder}
