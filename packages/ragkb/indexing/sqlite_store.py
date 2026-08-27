@@ -92,17 +92,21 @@ class SQLiteVectorStore(VectorStore):
         if k <= 0:
             return []
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT id, text, metadata, embedding FROM chunks"
-            ).fetchall()
+            if category is not None:
+                rows = self._conn.execute(
+                    "SELECT id, text, metadata, embedding FROM chunks WHERE category = ?",
+                    (category,),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT id, text, metadata, embedding FROM chunks"
+                ).fetchall()
         if not rows:
             return []
         entries: list[tuple[str, str, dict, bytes]] = []
         for row in rows:
             metadata = json.loads(row[2])
             if scope is not None and not scope.allows(metadata):
-                continue
-            if category is not None and str(metadata.get("category", "")) != category:
                 continue
             entries.append((row[0], row[1], metadata, row[3]))
         if not entries:
@@ -164,9 +168,16 @@ class SQLiteVectorStore(VectorStore):
     def all_chunks(self) -> list[Chunk]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, text, metadata FROM chunks"
+                "SELECT id, text, metadata, category FROM chunks"
             ).fetchall()
-        return [Chunk(id=row[0], text=row[1], metadata=json.loads(row[2])) for row in rows]
+        chunks: list[Chunk] = []
+        for row in rows:
+            metadata = json.loads(row[2])
+            # The category column is authoritative (backfill/rename update it directly),
+            # so mirror it into the metadata the retriever reads.
+            metadata["category"] = row[3]
+            chunks.append(Chunk(id=row[0], text=row[1], metadata=metadata))
+        return chunks
 
     def close(self) -> None:
         with self._lock:

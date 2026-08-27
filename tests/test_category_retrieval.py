@@ -47,3 +47,20 @@ def test_hybrid_retrieval_filters_by_category(tmp_path) -> None:
 
     unrestricted = asyncio.run(retriever.retrieve("GPIO", k=4))
     assert len(unrestricted) == 2
+
+
+def test_category_filter_uses_column_not_metadata(tmp_path) -> None:
+    """Backfilled chunks (category column set, metadata JSON lacks the key) still match."""
+    store = SQLiteVectorStore(str(tmp_path / "store.sqlite"))
+    embedding = FakeEmbedding(dim=32)
+    chunk = Chunk(id="a", text="GPIO pins control output", metadata={"source": "a.md"})
+    embeddings = asyncio.run(embedding.embed_texts([chunk.text]))
+    store.add([chunk], embeddings)
+    # simulate the one-time backfill: set the category column only
+    store._conn.execute("UPDATE chunks SET category = 'AB5766C' WHERE id = 'a'")
+    store._conn.commit()
+
+    query = asyncio.run(embedding.embed_query("GPIO"))
+    assert len(store.search(query, k=4, category="AB5766C")) == 1
+    assert store.search(query, k=4, category="OTHER") == []
+    assert store.all_chunks()[0].metadata["category"] == "AB5766C"
