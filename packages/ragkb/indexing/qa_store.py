@@ -67,22 +67,24 @@ class QAStore:
             self._conn.commit()
 
     def promote(self, qa_id: int) -> dict | None:
-        """Mark a Q&A as FAQ and return its content for re-indexing."""
+        """Mark a Q&A as FAQ and return its content plus a first-time flag."""
         with self._lock:
-            self._conn.execute("UPDATE qa_log SET is_faq = 1 WHERE id = ?", (qa_id,))
             row = self._conn.execute(
-                "SELECT id, question, answer, customer, model FROM qa_log WHERE id = ?",
+                "SELECT id, question, answer, customer, model, is_faq FROM qa_log WHERE id = ?",
                 (qa_id,),
             ).fetchone()
+            if row is None:
+                return None
+            newly_promoted = row[5] != 1
+            self._conn.execute("UPDATE qa_log SET is_faq = 1 WHERE id = ?", (qa_id,))
             self._conn.commit()
-        if row is None:
-            return None
         return {
             "id": row[0],
             "question": row[1],
             "answer": row[2],
             "customer": row[3],
             "model": row[4],
+            "newly_promoted": newly_promoted,
         }
 
     def list_recent(self, limit: int = 20) -> list[dict]:

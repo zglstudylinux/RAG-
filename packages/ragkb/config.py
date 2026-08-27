@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     hybrid_rrf_k: int = 60
     rerank_provider: str = "none"  # reserved for API rerankers (e.g. bge-reranker)
 
+    # Curated FAQ (question -> standard answer, matched by embedding similarity)
+    faq_score_threshold: float = 0.70  # minimum cosine similarity to surface an FAQ
+    faq_top_k: int = 2  # how many FAQ candidates to prepend to the context
+
     # Auth
     jwt_secret: str = "change-me-in-production-use-a-long-random-secret"
     jwt_expires_minutes: int = 720
@@ -74,6 +78,7 @@ class Settings(BaseSettings):
             "chunk_overlap": self.chunk_overlap,
             "retrieval_top_k": self.retrieval_top_k,
             "retrieval_mode": self.retrieval_mode,
+            "faq_score_threshold": self.faq_score_threshold,
         }
 
 

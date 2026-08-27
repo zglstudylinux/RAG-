@@ -12,6 +12,7 @@ from apps.api.routes.ask import router as ask_router
 from apps.api.routes.auth import router as auth_router
 from apps.api.routes.categories import router as categories_router
 from apps.api.routes.documents import router as documents_router
+from apps.api.routes.faqs import router as faqs_router
 from apps.api.routes.health import router as health_router
 from apps.api.routes.ingest import router as ingest_router
 from apps.api.routes.qa import router as qa_router
@@ -21,6 +22,7 @@ from ragkb.config import get_settings
 from ragkb.core.errors import ConfigurationError
 from ragkb.core.factory import build_store
 from ragkb.indexing.category_store import CategoryStore
+from ragkb.indexing.faq_store import FaqStore
 from ragkb.indexing.qa_store import QAStore
 from ragkb.indexing.user_store import UserStore
 from ragkb.logging_setup import configure_logging, get_logger
@@ -44,6 +46,7 @@ def create_app() -> FastAPI:
     app.state.user_store = UserStore(settings.store_path)
     app.state.qa_store = QAStore(settings.store_path)
     app.state.category_store = CategoryStore(settings.store_path)
+    app.state.faq_store = FaqStore(settings.store_path)
     app.state.user_store.ensure_default_user(
         settings.default_admin_username, settings.default_admin_password
     )
@@ -62,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(categories_router)
     app.include_router(users_router)
     app.include_router(qa_router)
+    app.include_router(faqs_router)
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):

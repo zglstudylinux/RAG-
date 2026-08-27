@@ -49,8 +49,8 @@ def test_ask_logs_feedback_promote(monkeypatch, tmp_path) -> None:
     promote_response = client.post(f"/qa/{qa_id}/promote", headers=headers)
     assert promote_response.status_code == 200
 
-    documents = client.get("/documents", headers=headers).json()["documents"]
-    assert any(document["source"].startswith("faq:") for document in documents)
+    faqs = client.get("/faqs", headers=headers).json()["faqs"]
+    assert any(faq["question"] == "gpio init" for faq in faqs)
 
 
 def test_similar_questions(monkeypatch, tmp_path) -> None:

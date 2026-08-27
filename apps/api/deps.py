@@ -45,7 +45,16 @@ def ensure_services(app: FastAPI) -> None:
     app.state.ingestion_pipeline = IngestionPipeline(
         embedding, store, splitter, code_splitter, vlm
     )
-    app.state.rag_pipeline = RAGPipeline(embedding, store, llm, retriever, reranker)
+    app.state.rag_pipeline = RAGPipeline(
+        embedding,
+        store,
+        llm,
+        retriever,
+        reranker,
+        faq_store=app.state.faq_store,
+        faq_threshold=settings.faq_score_threshold,
+        faq_top_k=settings.faq_top_k,
+    )
 
 
 async def get_current_user(

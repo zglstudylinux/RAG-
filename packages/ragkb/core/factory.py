@@ -9,6 +9,7 @@ from ragkb.chunking.splitter import RecursiveCharacterSplitter
 from ragkb.config import Settings
 from ragkb.core.ingestion import IngestionPipeline
 from ragkb.core.rag import RAGPipeline
+from ragkb.indexing.faq_store import FaqStore
 from ragkb.indexing.sqlite_store import SQLiteVectorStore
 from ragkb.providers.base import EmbeddingProvider
 from ragkb.providers.registry import build_embedding, build_llm, build_vlm
@@ -53,6 +54,7 @@ class Services:
     store: SQLiteVectorStore
     retriever: Retriever
     embedding: EmbeddingProvider
+    faq_store: FaqStore
 
 
 def build_services(settings: Settings) -> Services:
@@ -66,7 +68,22 @@ def build_services(settings: Settings) -> Services:
     splitter = RecursiveCharacterSplitter(settings.chunk_size, settings.chunk_overlap)
     code_splitter = CodeSplitter()
     ingestion = IngestionPipeline(embedding, store, splitter, code_splitter, vlm)
-    rag = RAGPipeline(embedding, store, llm, retriever, reranker)
+    faq_store = FaqStore(settings.store_path)
+    rag = RAGPipeline(
+        embedding,
+        store,
+        llm,
+        retriever,
+        reranker,
+        faq_store=faq_store,
+        faq_threshold=settings.faq_score_threshold,
+        faq_top_k=settings.faq_top_k,
+    )
     return Services(
-        ingestion=ingestion, rag=rag, store=store, retriever=retriever, embedding=embedding
+        ingestion=ingestion,
+        rag=rag,
+        store=store,
+        retriever=retriever,
+        embedding=embedding,
+        faq_store=faq_store,
     )

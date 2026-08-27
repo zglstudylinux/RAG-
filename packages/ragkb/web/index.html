@@ -41,6 +41,9 @@
   .folder-head .spacer { flex: 1; }
   .folder-body { padding: 0 10px 6px; }
   .folder-body .doc { border-bottom-color: #f0f2f4; }
+  .faq-item { border: 1px solid #e4e7ec; border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+  .faq-item .name { font-weight: 600; }
+  .faq-answer { margin-top: 6px; white-space: pre-wrap; font-size: 13px; color: #444; border-top: 1px dashed #e4e7ec; padding-top: 6px; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #eef2f6; color: var(--muted); white-space: nowrap; }
   .muted { color: var(--muted); font-size: 12px; }
   .hidden { display: none; }
@@ -77,6 +80,7 @@
       <button class="tab active" data-tab="qa">问答</button>
       <button class="tab" data-tab="docs">资料管理</button>
       <button class="tab" data-tab="cats">分类管理</button>
+      <button class="tab" data-tab="faqs">FAQ管理</button>
       <button class="tab" data-tab="users">用户管理</button>
     </nav>
 
@@ -151,6 +155,37 @@
       <div class="card">
         <h2>已有分类</h2>
         <div id="cats-list"><div class="muted">加载中…</div></div>
+      </div>
+    </section>
+
+    <!-- FAQ 沉淀 -->
+    <section id="tab-faqs" class="tabpane hidden">
+      <div class="card">
+        <h2>新建 FAQ（问题 → 标准答案）</h2>
+        <div class="inline">
+          <div style="flex:1">
+            <label>问题（用户会怎么问）</label>
+            <input type="text" id="faq-q" placeholder="如何配置一个新的串口？">
+          </div>
+          <div>
+            <label>所属分类（可选）</label>
+            <select id="faq-category"></select>
+          </div>
+        </div>
+        <label style="margin-top:8px">标准答案</label>
+        <textarea id="faq-a" rows="4" placeholder="写清楚步骤，例如：1. 在 config.h 中使能 UART1 … 2. 配置 IO 复用 …"></textarea>
+        <div style="margin-top:8px"><button id="faq-add-btn">保存 FAQ</button></div>
+        <div class="section-note">FAQ 沉淀：文档里没有、需要人工总结的「问题→标准答案」。命中时优先于普通资料返回。</div>
+      </div>
+
+      <div class="card">
+        <h2>已沉淀 FAQ</h2>
+        <div id="faqs-list"><div class="muted">加载中…</div></div>
+      </div>
+
+      <div class="card">
+        <h2>最近问答（可一键存入 FAQ）</h2>
+        <div id="qa-recent-list"><div class="muted">加载中…</div></div>
       </div>
     </section>
 
@@ -247,10 +282,11 @@ async function login() {
 /* ---------- 视图切换 ---------- */
 function switchTab(name) {
   document.querySelectorAll("nav button.tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  ["qa","docs","cats","users"].forEach(t =>
+  ["qa","docs","cats","faqs","users"].forEach(t =>
     document.getElementById("tab-" + t).classList.toggle("hidden", t !== name));
   if (name === "docs") refreshDocs();
   if (name === "cats") refreshCategories();
+  if (name === "faqs") { refreshFaqs(); refreshRecentQa(); }
   if (name === "users") refreshUsers();
   if (name === "qa") refreshAskCategory();
 }
@@ -264,6 +300,7 @@ async function refreshCategories() {
   fillCategorySelect("upload-category", true);
   fillCategorySelect("docs-filter", false);
   fillCategorySelect("ask-category", false);
+  fillCategorySelect("faq-category", true);
   fillParentSelect();
   renderCategoriesList();
 }
@@ -507,6 +544,96 @@ async function deleteCategory(name) {
   catch (e) { status("删除失败：" + e.message); }
 }
 
+/* ---------- FAQ 沉淀 ---------- */
+async function refreshFaqs() {
+  const list = document.getElementById("faqs-list");
+  try {
+    const data = await api("GET", "/faqs");
+    const faqs = data.faqs || [];
+    list.innerHTML = "";
+    if (!faqs.length) { list.innerHTML = '<div class="muted">（还没有 FAQ，先在上面新建）</div>'; return; }
+    for (const f of faqs) {
+      const div = document.createElement("div");
+      div.className = "faq-item";
+      div.innerHTML = `
+        <div class="row">
+          <span class="name">${esc(f.question)}</span>
+          <span class="badge">${esc(f.category || "未分类")}</span>
+          <span class="muted">${esc(f.created_at || "")}</span>
+          <span class="spacer" style="flex:1"></span>
+          <button class="ghost" data-faq-edit="${f.id}">编辑</button>
+          <button class="danger" data-faq-del="${f.id}">删除</button>
+        </div>
+        <div class="faq-answer">${esc(f.answer)}</div>`;
+      list.appendChild(div);
+    }
+  } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }
+}
+
+async function addFaq() {
+  const question = document.getElementById("faq-q").value.trim();
+  const answer = document.getElementById("faq-a").value.trim();
+  const category = document.getElementById("faq-category").value;
+  if (!question || !answer) { status("请填写问题和标准答案"); return; }
+  try {
+    await api("POST", "/faqs", { question, answer, category });
+    document.getElementById("faq-q").value = "";
+    document.getElementById("faq-a").value = "";
+    status("FAQ 已保存");
+    refreshFaqs();
+  } catch (e) { status("保存失败：" + e.message); }
+}
+
+async function editFaq(id) {
+  const question = prompt("修改问题：");
+  if (question === null) return;
+  const answer = prompt("修改标准答案：");
+  if (answer === null) return;
+  try { await api("PATCH", "/faqs/" + id, { question, answer }); refreshFaqs(); }
+  catch (e) { status("修改失败：" + e.message); }
+}
+
+async function deleteFaq(id) {
+  if (!confirm("确定删除这条 FAQ？")) return;
+  try { await api("DELETE", "/faqs/" + id); refreshFaqs(); }
+  catch (e) { status("删除失败：" + e.message); }
+}
+
+async function refreshRecentQa() {
+  const list = document.getElementById("qa-recent-list");
+  try {
+    const data = await api("GET", "/qa/recent?limit=10");
+    const qas = data.qa || [];
+    list.innerHTML = "";
+    if (!qas.length) { list.innerHTML = '<div class="muted">（还没有问答记录）</div>'; return; }
+    for (const q of qas) {
+      const div = document.createElement("div");
+      div.className = "faq-item";
+      const promoted = q.is_faq
+        ? '<span class="badge">已存入</span>'
+        : `<button class="ghost" data-qa-promote="${q.id}">存入 FAQ</button>`;
+      div.innerHTML = `
+        <div class="row">
+          <span class="name">${esc(q.question)}</span>
+          <span class="muted">${esc(q.username)} · ${esc(q.created_at || "")}</span>
+          <span class="spacer" style="flex:1"></span>
+          ${promoted}
+        </div>
+        <div class="faq-answer">${esc(q.answer)}</div>`;
+      list.appendChild(div);
+    }
+  } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }
+}
+
+async function promoteQa(id) {
+  try {
+    await api("POST", "/qa/" + id + "/promote");
+    status("已存入 FAQ");
+    refreshRecentQa();
+    refreshFaqs();
+  } catch (e) { status("存入失败：" + e.message); }
+}
+
 /* ---------- 用户管理 ---------- */
 async function refreshUsers() {
   const list = document.getElementById("users-list");
@@ -551,6 +678,7 @@ document.getElementById("login-btn").onclick = login;
 document.getElementById("ask-btn").onclick = ask;
 document.getElementById("upload-btn").onclick = upload;
 document.getElementById("cat-create-btn").onclick = createCategory;
+document.getElementById("faq-add-btn").onclick = addFaq;
 document.getElementById("u-create-btn").onclick = createUser;
 document.getElementById("question").addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); }
@@ -571,6 +699,16 @@ document.getElementById("cats-list").addEventListener("click", e => {
   const del = e.target.closest("button[data-delete]");
   if (rename) renameCategory(rename.getAttribute("data-rename"));
   if (del) deleteCategory(del.getAttribute("data-delete"));
+});
+document.getElementById("faqs-list").addEventListener("click", e => {
+  const edit = e.target.closest("button[data-faq-edit]");
+  const del = e.target.closest("button[data-faq-del]");
+  if (edit) editFaq(edit.getAttribute("data-faq-edit"));
+  if (del) deleteFaq(del.getAttribute("data-faq-del"));
+});
+document.getElementById("qa-recent-list").addEventListener("click", e => {
+  const promote = e.target.closest("button[data-qa-promote]");
+  if (promote) promoteQa(promote.getAttribute("data-qa-promote"));
 });
 
 if (getToken()) {

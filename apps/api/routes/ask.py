@@ -12,7 +12,7 @@ from ragkb.core.rag import RAGPipeline
 
 class AskRequest(BaseModel):
     question: str
-    top_k: int = 4
+    top_k: int | None = None
     category: str | None = None
 
 
@@ -28,9 +28,10 @@ async def ask(
     """Answer a question with citations, restricted to the user's ACL scope."""
     ensure_services(request.app)
     pipeline: RAGPipeline = request.app.state.rag_pipeline
+    top_k = body.top_k or request.app.state.settings.retrieval_top_k
     scope = build_scope(user["role"], user["customers"], user["models"])
     answer = await pipeline.answer(
-        body.question, k=body.top_k, scope=scope, category=body.category
+        body.question, k=top_k, scope=scope, category=body.category
     )
     citations = [
         {"source": citation.source, "page": citation.page, "snippet": citation.snippet}

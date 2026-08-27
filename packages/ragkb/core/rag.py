@@ -15,6 +15,7 @@ from ragkb.retrieval.vector import VectorRetriever
 SYSTEM_PROMPT = (
     "你是芯片原厂技术资料助手。请只依据提供的资料片段回答问题，"
     "并在回答中用 [1]、[2] 等编号标注引用来源。"
+    "如果资料中包含“FAQ 标准答案”，请优先直接采用该标准答案。"
     "如果资料中没有相关信息，请回答“资料中未找到相关内容”，不要编造。"
 )
 
@@ -31,10 +32,18 @@ class RAGPipeline:
         llm: LLMProvider,
         retriever: Retriever | None = None,
         reranker: Reranker | None = None,
+        *,
+        faq_store: object | None = None,
+        faq_threshold: float = 0.70,
+        faq_top_k: int = 2,
     ) -> None:
         self._retriever = retriever or VectorRetriever(embedding, store)
         self._reranker = reranker or NoopReranker()
         self._llm = llm
+        self._embedding = embedding
+        self._faq_store = faq_store
+        self._faq_threshold = faq_threshold
+        self._faq_top_k = faq_top_k
 
     async def answer(
         self,
@@ -45,9 +54,10 @@ class RAGPipeline:
     ) -> Answer:
         results = await self._retriever.retrieve(question, k=k, scope=scope, category=category)
         results = await self._reranker.rerank(question, results)
-        if not results:
+        faqs = await self._search_faqs(question, category)
+        if not results and not faqs:
             return Answer(text="资料中未找到相关内容。", citations=[])
-        context, citations = self._format_context(results)
+        context, citations = self._format_context(results, faqs)
         messages = [
             Message(role="system", content=SYSTEM_PROMPT),
             Message(role="user", content=f"资料片段：\n\n{context}\n\n问题：{question}"),
@@ -55,6 +65,18 @@ class RAGPipeline:
         result = await self._llm.generate(messages)
         text, filtered = self._filter_citations(result.content, citations)
         return Answer(text=text, citations=filtered)
+
+    async def _search_faqs(self, question: str, category: str | None) -> list[dict]:
+        """Find curated FAQ entries whose question closely matches ``question``."""
+        if self._faq_store is None:
+            return []
+        query_embedding = await self._embedding.embed_query(question)
+        return self._faq_store.search(  # type: ignore[attr-defined]
+            query_embedding,
+            k=self._faq_top_k,
+            category=category,
+            min_score=self._faq_threshold,
+        )
 
     @staticmethod
     def _filter_citations(
@@ -88,10 +110,17 @@ class RAGPipeline:
         return new_text, new_citations
 
     @staticmethod
-    def _format_context(results: list[SearchResult]) -> tuple[str, list[Citation]]:
+    def _format_context(
+        results: list[SearchResult], faqs: list[dict]
+    ) -> tuple[str, list[Citation]]:
         parts: list[str] = []
         citations: list[Citation] = []
-        for index, result in enumerate(results, start=1):
+        for index, faq in enumerate(faqs, start=1):
+            parts.append(f"[{index}] FAQ 标准答案\n问：{faq['question']}\n答：{faq['answer']}")
+            citations.append(
+                Citation(source="FAQ 沉淀", page=None, snippet=faq["answer"][:200])
+            )
+        for index, result in enumerate(results, start=len(faqs) + 1):
             metadata = result.chunk.metadata
             source = str(metadata.get("source", "unknown"))
             page = metadata.get("page")
