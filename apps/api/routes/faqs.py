@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from apps.api.deps import ensure_services, require_internal
+from ragkb.core.rag import strip_citation_markers
 
 router = APIRouter(tags=["faqs"])
 
@@ -40,7 +41,11 @@ async def create_faq(
     ensure_services(request.app)
     question_embedding = await request.app.state.embedding.embed_query(body.question)
     faq_id = request.app.state.faq_store.add(
-        body.question, body.answer, body.category, user["username"], question_embedding
+        body.question,
+        strip_citation_markers(body.answer),
+        body.category,
+        user["username"],
+        question_embedding,
     )
     return {"status": "ok", "id": faq_id}
 
@@ -57,7 +62,9 @@ async def update_faq(
     if existing is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="FAQ not found")
     question = body.question if body.question is not None else existing["question"]
-    answer = body.answer if body.answer is not None else existing["answer"]
+    answer = strip_citation_markers(
+        body.answer if body.answer is not None else existing["answer"]
+    )
     category = body.category if body.category is not None else existing["category"]
     question_embedding = await request.app.state.embedding.embed_query(question)
     if not request.app.state.faq_store.update(

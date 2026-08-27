@@ -6,7 +6,8 @@ import asyncio
 
 from ragkb.chunking.splitter import RecursiveCharacterSplitter
 from ragkb.core.ingestion import IngestionPipeline
-from ragkb.core.rag import RAGPipeline
+from ragkb.core.rag import RAGPipeline, strip_citation_markers
+from ragkb.indexing.faq_store import FaqStore
 from ragkb.indexing.sqlite_store import SQLiteVectorStore
 from ragkb.providers.fake import FakeEmbedding, FakeLLM
 
@@ -78,3 +79,30 @@ def test_answer_no_markers_keeps_all_citations(tmp_path) -> None:
     llm._answer = "This is a fake answer."  # no [n] markers
     answer = asyncio.run(rag.answer("How to configure GPIO pins?"))
     assert answer.citations  # fallback keeps all retrieved candidates
+
+
+def test_strip_citation_markers() -> None:
+    assert strip_citation_markers("abc[1]def") == "abcdef"
+    assert strip_citation_markers("a [1][2] b") == "a  b"
+    assert strip_citation_markers("no markers") == "no markers"
+
+
+def test_faq_answer_markers_stripped_in_context(tmp_path) -> None:
+    store = SQLiteVectorStore(":memory:")
+    embedding = FakeEmbedding(dim=64)
+    faq_store = FaqStore(str(tmp_path / "faq.sqlite"))
+    faq_store.add("GPIO", "GPIO answer [1].", "", "admin",
+                  asyncio.run(embedding.embed_query("GPIO")))
+    llm = FakeLLM()
+    rag = RAGPipeline(
+        embedding=embedding,
+        store=store,
+        llm=llm,
+        faq_store=faq_store,
+        faq_threshold=0.5,
+        faq_top_k=1,
+    )
+    asyncio.run(rag.answer("GPIO"))
+    context = llm.last_messages[-1].content
+    assert "答：GPIO answer ." in context
+    assert "GPIO answer [1]" not in context

@@ -44,6 +44,12 @@
   .faq-item { border: 1px solid #e4e7ec; border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
   .faq-item .name { font-weight: 600; }
   .faq-answer { margin-top: 6px; white-space: pre-wrap; font-size: 13px; color: #444; border-top: 1px dashed #e4e7ec; padding-top: 6px; }
+  .msg code { background: #f0f2f4; border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
+  .msg pre { background: #f6f8fa; border-radius: 8px; padding: 10px; overflow-x: auto; }
+  .msg pre code { background: none; padding: 0; }
+  .msg ul, .msg ol { margin: 6px 0 6px 20px; padding: 0; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #cfd4da; border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #eef2f6; color: var(--muted); white-space: nowrap; }
   .muted { color: var(--muted); font-size: 12px; }
   .hidden { display: none; }
@@ -221,6 +227,68 @@ const getToken = () => localStorage.getItem("ragkb_token");
 const authHeaders = () => ({ "Authorization": "Bearer " + getToken(), "Content-Type": "application/json" });
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 const cleanName = (src) => String(src).split(/[\\/]/).pop();
+
+/* 极简 Markdown 渲染：先转义 HTML，再生成少量白名单标签（无外部依赖，防 XSS）。
+   支持：``` 代码块、`行内代码`、**加粗**、#/##/### 标题、- /* 列表、1. 有序列表。 */
+function mdToHtml(text) {
+  if (text == null) return "";
+  const src = String(text).replace(/\r\n?/g, "\n");
+
+  // 1) 围栏代码块先抽出，避免被转义/其它规则误伤
+  const blocks = [];
+  const noBlocks = src.replace(/```[a-zA-Z]*\n([\s\S]*?)```/g, (m, code) => {
+    blocks.push(`<pre><code>${esc(code.replace(/\n+$/, ""))}</code></pre>`);
+    return `\u0000B${blocks.length - 1}\u0000`;
+  });
+
+  // 2) 转义 HTML（占位符里没有 &<>，不会受影响）
+  let html = esc(noBlocks);
+
+  // 3) 行内代码
+  const inlines = [];
+  html = html.replace(/`([^`\n]+)`/g, (m, code) => {
+    inlines.push(`<code>${code}</code>`);
+    return `\u0000I${inlines.length - 1}\u0000`;
+  });
+
+  // 4) 加粗、标题
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/^###\s*(.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^##\s*(.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^#\s*(.+)$/gm, "<h2>$1</h2>");
+
+  // 5) 列表
+  html = renderLists(html);
+
+  // 6) 还原行内代码与代码块
+  html = html.replace(/\u0000I(\d+)\u0000/g, (m, i) => inlines[+i]);
+  html = html.replace(/\u0000B(\d+)\u0000/g, (m, i) => blocks[+i]);
+
+  return html.replace(/\n/g, "<br>");
+}
+
+function renderLists(html) {
+  const out = [];
+  let listType = null;
+  for (const line of html.split("\n")) {
+    const bullet = line.match(/^[-*]\s+(.*)$/);
+    if (bullet) {
+      if (listType !== "ul") { if (listType) out.push(`</${listType}>`); out.push("<ul>"); listType = "ul"; }
+      out.push(`<li>${bullet[1]}</li>`);
+      continue;
+    }
+    const ordered = line.match(/^\d+\.\s+(.*)$/);
+    if (ordered) {
+      if (listType !== "ol") { if (listType) out.push(`</${listType}>`); out.push("<ol>"); listType = "ol"; }
+      out.push(`<li>${ordered[1]}</li>`);
+      continue;
+    }
+    if (listType) { out.push(`</${listType}>`); listType = null; }
+    out.push(line);
+  }
+  if (listType) out.push(`</${listType}>`);
+  return out.join("\n");
+}
 let currentUser = null;
 
 function status(msg) { document.getElementById("status").textContent = msg || ""; }
@@ -337,7 +405,7 @@ function addMsg(kind, text, citations, qaId) {
   const chat = document.getElementById("chat");
   const div = document.createElement("div");
   div.className = "msg " + kind;
-  div.textContent = text;
+  div.innerHTML = mdToHtml(text);
   const isFaqAnswer = (citations || []).some(c => c.source === "FAQ 沉淀");
   if (kind === "a" && qaId != null && !isFaqAnswer) {
     const btn = document.createElement("button");
@@ -358,16 +426,31 @@ function addMsg(kind, text, citations, qaId) {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function addThinking() {
+  const chat = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "msg a";
+  div.innerHTML = '<span class="spinner"></span>思考中…';
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
 async function ask() {
   const q = document.getElementById("question").value.trim();
   if (!q) return;
   addMsg("q", q);
   document.getElementById("question").value = "";
   const category = document.getElementById("ask-category").value || null;
+  const thinking = addThinking();
   try {
     const data = await api("POST", "/ask", { question: q, category });
+    thinking.remove();
     addMsg("a", data.answer, data.citations, data.qa_id);
-  } catch (e) { addMsg("a", "请求失败：" + e.message); }
+  } catch (e) {
+    thinking.remove();
+    addMsg("a", "请求失败：" + e.message);
+  }
 }
 
 /* ---------- 资料上传 ---------- */
@@ -573,7 +656,7 @@ async function refreshFaqs() {
           <button class="ghost" data-faq-edit="${f.id}">编辑</button>
           <button class="danger" data-faq-del="${f.id}">删除</button>
         </div>
-        <div class="faq-answer">${esc(f.answer)}</div>`;
+        <div class="faq-answer">${mdToHtml(f.answer)}</div>`;
       list.appendChild(div);
     }
   } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }
@@ -628,7 +711,7 @@ async function refreshRecentQa() {
           <span class="spacer" style="flex:1"></span>
           ${promoted}
         </div>
-        <div class="faq-answer">${esc(q.answer)}</div>`;
+        <div class="faq-answer">${mdToHtml(q.answer)}</div>`;
       list.appendChild(div);
     }
   } catch (e) { list.innerHTML = `<div class="muted">加载失败：${esc(e.message)}</div>`; }

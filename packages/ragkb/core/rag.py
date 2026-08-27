@@ -22,6 +22,17 @@ SYSTEM_PROMPT = (
 _CITATION_REF = re.compile(r"\[(\d+)\]")
 
 
+def strip_citation_markers(text: str) -> str:
+    """Remove ``[n]`` citation markers from an answer.
+
+    FAQ answers are stored verbatim from a prior LLM generation, which included
+    ``[n]`` markers referring to that generation's chunk order. When the FAQ is later
+    prepended to a fresh context with a different order, those stale markers corrupt
+    the citations, so they are stripped before storing/serving the FAQ.
+    """
+    return _CITATION_REF.sub("", text)
+
+
 class RAGPipeline:
     """Answers questions by retrieving chunks and generating a cited answer."""
 
@@ -116,10 +127,9 @@ class RAGPipeline:
         parts: list[str] = []
         citations: list[Citation] = []
         for index, faq in enumerate(faqs, start=1):
-            parts.append(f"[{index}] FAQ 标准答案\n问：{faq['question']}\n答：{faq['answer']}")
-            citations.append(
-                Citation(source="FAQ 沉淀", page=None, snippet=faq["answer"][:200])
-            )
+            answer = strip_citation_markers(str(faq["answer"]))
+            parts.append(f"[{index}] FAQ 标准答案\n问：{faq['question']}\n答：{answer}")
+            citations.append(Citation(source="FAQ 沉淀", page=None, snippet=answer[:200]))
         for index, result in enumerate(results, start=len(faqs) + 1):
             metadata = result.chunk.metadata
             source = str(metadata.get("source", "unknown"))

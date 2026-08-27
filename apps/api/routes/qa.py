@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from apps.api.deps import ensure_services, get_current_user, require_internal
+from ragkb.core.rag import strip_citation_markers
 
 router = APIRouter(tags=["qa"])
 
@@ -47,8 +48,9 @@ async def promote(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QA not found")
     if record["newly_promoted"]:
         question_embedding = await request.app.state.embedding.embed_query(record["question"])
+        answer = strip_citation_markers(record["answer"])
         request.app.state.faq_store.add(
-            record["question"], record["answer"], "", user["username"], question_embedding
+            record["question"], answer, "", user["username"], question_embedding
         )
     return {"status": "ok", "qa_id": qa_id}
 
