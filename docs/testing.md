@@ -22,12 +22,13 @@
 ## 1. 自动化测试 ✅
 
 ```powershell
-.venv\Scripts\python -m pytest -q   # 预期：105 passed
+.venv\Scripts\python -m pytest -q   # 预期：108 passed
 .venv\Scripts\ruff check .          # 预期：All checks passed!
 ```
 
 - [x] 2026-08-26 结果：`101 passed in 7.10s`、`All checks passed!` ✅
 - [x] 2026-08-26 结果：`105 passed in 8.88s`、`All checks passed!` ✅（新增：分类列过滤、文件夹分组/整组删除）
+- [x] 2026-08-26 结果：`108 passed in 9.21s`、`All checks passed!` ✅（新增：FAQ 沉淀存储/检索/API、FAQ 优先命中）
 
 ---
 
