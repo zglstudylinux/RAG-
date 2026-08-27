@@ -46,3 +46,4 @@ class Answer:
 
     text: str
     citations: list[Citation] = field(default_factory=list)
+    faq_hits: list[dict] = field(default_factory=list)

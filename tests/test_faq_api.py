@@ -53,7 +53,7 @@ def test_faq_crud_flow(monkeypatch, tmp_path) -> None:
 def test_faq_answer_priority(monkeypatch, tmp_path) -> None:
     client = _client(monkeypatch, tmp_path)
     headers = _login(client)
-    client.post(
+    created = client.post(
         "/faqs",
         json={
             "question": "如何配置一个新的串口",
@@ -62,8 +62,10 @@ def test_faq_answer_priority(monkeypatch, tmp_path) -> None:
         },
         headers=headers,
     )
+    faq_id = created.json()["id"]
 
     response = client.post("/ask", json={"question": "如何配置一个新的串口"}, headers=headers)
     assert response.status_code == 200
-    citations = response.json()["citations"]
-    assert any(citation["source"] == "FAQ 沉淀" for citation in citations)
+    payload = response.json()
+    assert any(citation["source"] == "FAQ 沉淀" for citation in payload["citations"])
+    assert payload["faq_hits"] == [{"id": faq_id, "question": "如何配置一个新的串口"}]

@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
     @app.get("/", include_in_schema=False)
     async def index() -> HTMLResponse:
         html = files("ragkb.web").joinpath("index.html").read_text(encoding="utf-8")
-        return HTMLResponse(html)
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
     return app
 

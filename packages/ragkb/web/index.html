@@ -97,6 +97,15 @@
         <div class="row" style="margin-bottom:8px">
           <label style="margin:0">限定分类</label>
           <select id="ask-category" style="width:auto;min-width:180px"></select>
+          <label style="margin:0">引用条数 top_k</label>
+          <select id="ask-topk" style="width:auto;min-width:64px">
+            <option value="4">4</option>
+            <option value="6">6</option>
+            <option value="8">8</option>
+            <option value="10" selected>10</option>
+            <option value="15">15</option>
+            <option value="20">20</option>
+          </select>
         </div>
         <div id="chat"></div>
         <div class="row">
@@ -401,19 +410,42 @@ function fillParentSelect() {
 function refreshAskCategory() { fillCategorySelect("ask-category", false); }
 
 /* ---------- 问答 ---------- */
-function addMsg(kind, text, citations, qaId) {
+function addMsg(kind, text, citations, qaId, faqHits) {
   const chat = document.getElementById("chat");
   const div = document.createElement("div");
   div.className = "msg " + kind;
   div.innerHTML = mdToHtml(text);
-  const isFaqAnswer = (citations || []).some(c => c.source === "FAQ 沉淀");
-  if (kind === "a" && qaId != null && !isFaqAnswer) {
+  const hits = faqHits || [];
+  if (kind === "a" && qaId != null && hits.length === 0) {
     const btn = document.createElement("button");
     btn.className = "ghost";
     btn.style.cssText = "margin-top:6px;font-size:12px";
     btn.textContent = "存入 FAQ";
     btn.dataset.qaPromote = qaId;
     div.appendChild(btn);
+  } else if (kind === "a" && hits.length > 0) {
+    const row = document.createElement("div");
+    row.style.cssText = "margin-top:6px";
+    const label = document.createElement("span");
+    label.className = "muted";
+    label.style.cssText = "font-size:12px;margin-right:6px";
+    label.textContent = "命中 FAQ：";
+    row.appendChild(label);
+    for (const f of hits) {
+      const edit = document.createElement("button");
+      edit.className = "ghost";
+      edit.style.cssText = "font-size:12px;margin-right:4px";
+      edit.textContent = "编辑 FAQ";
+      edit.dataset.faqEdit = f.id;
+      const del = document.createElement("button");
+      del.className = "ghost";
+      del.style.cssText = "font-size:12px;color:#c0392b";
+      del.textContent = "撤销";
+      del.dataset.faqDel = f.id;
+      row.appendChild(edit);
+      row.appendChild(del);
+    }
+    div.appendChild(row);
   }
   chat.appendChild(div);
   if (citations && citations.length) {
@@ -442,11 +474,12 @@ async function ask() {
   addMsg("q", q);
   document.getElementById("question").value = "";
   const category = document.getElementById("ask-category").value || null;
+  const topk = parseInt(document.getElementById("ask-topk").value, 10) || null;
   const thinking = addThinking();
   try {
-    const data = await api("POST", "/ask", { question: q, category });
+    const data = await api("POST", "/ask", { question: q, category, top_k: topk });
     thinking.remove();
-    addMsg("a", data.answer, data.citations, data.qa_id);
+    addMsg("a", data.answer, data.citations, data.qa_id, data.faq_hits);
   } catch (e) {
     thinking.remove();
     addMsg("a", "请求失败：" + e.message);
@@ -677,18 +710,31 @@ async function addFaq() {
 }
 
 async function editFaq(id) {
-  const question = prompt("修改问题：");
+  let current = null;
+  try {
+    const data = await api("GET", "/faqs");
+    current = (data.faqs || []).find(f => f.id === Number(id));
+  } catch (e) { /* 预填失败则使用空值 */ }
+  const question = prompt("修改问题：", current ? current.question : "");
   if (question === null) return;
-  const answer = prompt("修改标准答案：");
+  const answer = prompt("修改标准答案：", current ? current.answer : "");
   if (answer === null) return;
   try { await api("PATCH", "/faqs/" + id, { question, answer }); refreshFaqs(); }
   catch (e) { status("修改失败：" + e.message); }
 }
 
 async function deleteFaq(id) {
-  if (!confirm("确定删除这条 FAQ？")) return;
-  try { await api("DELETE", "/faqs/" + id); refreshFaqs(); }
-  catch (e) { status("删除失败：" + e.message); }
+  if (!confirm("确定删除这条 FAQ？撤销后此问题将回到普通检索。")) return;
+  try {
+    await api("DELETE", "/faqs/" + id);
+    status("已删除 FAQ");
+    document.querySelectorAll(`button[data-faq-del="${id}"], button[data-faq-edit="${id}"]`).forEach(btn => {
+      btn.disabled = true;
+      btn.textContent = "已撤销";
+    });
+    refreshFaqs();
+    refreshRecentQa();
+  } catch (e) { status("删除失败：" + e.message); }
 }
 
 async function refreshRecentQa() {
@@ -768,6 +814,8 @@ async function initApp() {
   await refreshCategories();
   await refreshDocs();
   refreshAskCategory();
+  refreshFaqs();
+  refreshRecentQa();
 }
 
 document.getElementById("login-btn").onclick = login;
@@ -809,6 +857,10 @@ document.getElementById("qa-recent-list").addEventListener("click", e => {
 document.getElementById("chat").addEventListener("click", e => {
   const promote = e.target.closest("button[data-qa-promote]");
   if (promote) promoteQa(promote.getAttribute("data-qa-promote"));
+  const edit = e.target.closest("button[data-faq-edit]");
+  if (edit) editFaq(edit.getAttribute("data-faq-edit"));
+  const del = e.target.closest("button[data-faq-del]");
+  if (del) deleteFaq(del.getAttribute("data-faq-del"));
 });
 
 if (getToken()) {

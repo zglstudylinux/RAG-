@@ -47,4 +47,9 @@ async def ask(
         question_embedding,
     )
 
-    return {"answer": answer.text, "citations": citations, "qa_id": qa_id}
+    return {
+        "answer": answer.text,
+        "citations": citations,
+        "qa_id": qa_id,
+        "faq_hits": answer.faq_hits,
+    }

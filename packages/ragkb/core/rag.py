@@ -75,7 +75,8 @@ class RAGPipeline:
         ]
         result = await self._llm.generate(messages)
         text, filtered = self._filter_citations(result.content, citations)
-        return Answer(text=text, citations=filtered)
+        faq_hits = [{"id": faq["id"], "question": faq["question"]} for faq in faqs]
+        return Answer(text=text, citations=filtered, faq_hits=faq_hits)
 
     async def _search_faqs(self, question: str, category: str | None) -> list[dict]:
         """Find curated FAQ entries whose question closely matches ``question``."""
