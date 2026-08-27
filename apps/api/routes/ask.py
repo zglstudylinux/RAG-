@@ -42,9 +42,9 @@ async def ask(
     question_embedding = await request.app.state.embedding.embed_query(body.question)
     customer = user["customers"][0] if user["role"] == "customer" and user["customers"] else ""
     model = user["models"][0] if user["role"] == "customer" and user["models"] else ""
-    request.app.state.qa_store.record(
+    qa_id = request.app.state.qa_store.record(
         body.question, answer.text, citations, user["username"], customer, model,
         question_embedding,
     )
 
-    return {"answer": answer.text, "citations": citations}
+    return {"answer": answer.text, "citations": citations, "qa_id": qa_id}

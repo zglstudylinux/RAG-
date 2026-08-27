@@ -35,6 +35,7 @@ def test_ask_logs_feedback_promote(monkeypatch, tmp_path) -> None:
     )
     response = client.post("/ask", json={"question": "gpio init"}, headers=headers)
     assert response.status_code == 200
+    assert response.json().get("qa_id") is not None
 
     response = client.get("/qa/recent", headers=headers)
     assert response.status_code == 200
